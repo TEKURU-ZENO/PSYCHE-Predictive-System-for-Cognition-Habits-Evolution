@@ -1,0 +1,43 @@
+# Environments & Secrets
+.env
+.env.*
+*.env
+backend/.env
+frontend/.env
+**/venv/
+venv/
+env/
+ENV/
+
+# Python artifacts
+**/__pycache__/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node & Next.js builds
+**/node_modules/
+node_modules/
+frontend/node_modules/
+**/.next/
+.next/
+frontend/.next/
+*.tsbuildinfo
+frontend/tsconfig.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Database volumes
+pgdata/
+**/pgdata/
+
+# OS / Editor artifacts
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

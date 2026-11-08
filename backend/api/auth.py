@@ -64,6 +64,23 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
     token = create_token({"sub": user.email})
     return {"token": token}
 
+@router.post("/demo")
+def demo_login(db: Session = Depends(get_db)):
+    """Provides instant verified demo session token for friction-free exploration."""
+    demo_email = "demo@psychai.com"
+    user = db.query(User).filter(User.email == demo_email).first()
+    if not user:
+        user = User(
+            email=demo_email,
+            name="Alex Mercer (Demo)",
+            password_hash=hash_password("demopassword123")
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+    token = create_token({"sub": user.email})
+    return {"token": token, "email": user.email, "name": user.name}
+
 @router.get("/me")
 def get_me(user: User = Depends(get_current_user)):
     return {"id": user.id, "email": user.email, "name": user.name}

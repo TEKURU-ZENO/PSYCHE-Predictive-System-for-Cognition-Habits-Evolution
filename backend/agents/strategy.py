@@ -13,7 +13,12 @@ class StrategyAgent(BaseAgent):
         if not user_id:
              return {"output": None, "confidence": 0.0}
 
-        db = get_new_session()
+        db = context.get("db")
+        should_close = False
+        if db is None:
+            db = get_new_session()
+            should_close = True
+
         try:
             def fetch_strategy():
                 return select_nudge(db, user_id, emotion, 0.8, "general")
@@ -42,4 +47,5 @@ class StrategyAgent(BaseAgent):
                 "adjusted": False
             }
         finally:
-            db.close()
+            if should_close:
+                db.close()

@@ -105,7 +105,7 @@ class CognitiveMemoryEngine:
     @staticmethod
     def store_episode(
         db: Session,
-        user_id: int,
+        user_id: Any,
         scenario_text: str,
         episode_type: str = "decision_outcome",
         trigger_context: Optional[str] = None,
@@ -116,13 +116,14 @@ class CognitiveMemoryEngine:
         outcome_delta: float = 0.0,
         key_learnings: Optional[str] = None
     ) -> EpisodicMemory:
+        uid_str = str(user_id)
         keywords = extract_keywords(scenario_text)
         
         # Calculate salience / importance score based on emotion intensity and outcome magnitude
         salience = min(1.0, max(0.2, (intensity * 0.5) + (abs(outcome_delta) * 0.5)))
         
         episode = EpisodicMemory(
-            user_id=user_id,
+            user_id=uid_str,
             episode_type=episode_type,
             scenario_text=scenario_text,
             trigger_context=trigger_context or "general_reflection",
@@ -144,7 +145,7 @@ class CognitiveMemoryEngine:
         # Update Associative Graph edges based on episode attributes
         CognitiveMemoryEngine.reinforce_associations(
             db=db,
-            user_id=user_id,
+            user_id=uid_str,
             trigger_context=trigger_context,
             cognitive_distortion=cognitive_distortion,
             intervention_applied=intervention_applied,
@@ -156,13 +157,14 @@ class CognitiveMemoryEngine:
     @staticmethod
     def reinforce_associations(
         db: Session,
-        user_id: int,
+        user_id: Any,
         trigger_context: Optional[str],
         cognitive_distortion: Optional[str],
         intervention_applied: Optional[str],
         outcome_delta: float
     ):
         """Reinforces or creates Hebbian-style links between psychological concepts."""
+        uid_str = str(user_id)
         links_to_update = []
         
         # 1. Trigger -> Distortion link
@@ -215,13 +217,14 @@ class CognitiveMemoryEngine:
     @staticmethod
     def retrieve_relevant_episodes(
         db: Session,
-        user_id: int,
+        user_id: Any,
         query_text: str,
         q_valence: float = -0.3,
         top_k: int = 4
     ) -> List[Dict[str, Any]]:
         """Retrieves semantically and psychologically relevant historical episodes."""
-        episodes = db.query(EpisodicMemory).filter_by(user_id=user_id).order_by(EpisodicMemory.created_at.desc()).limit(100).all()
+        uid_str = str(user_id)
+        episodes = db.query(EpisodicMemory).filter_by(user_id=uid_str).order_by(EpisodicMemory.created_at.desc()).limit(100).all()
         if not episodes:
             return []
 
@@ -266,9 +269,10 @@ class CognitiveMemoryEngine:
         return results
 
     @staticmethod
-    def get_associative_graph(db: Session, user_id: int) -> Dict[str, Any]:
+    def get_associative_graph(db: Session, user_id: Any) -> Dict[str, Any]:
         """Returns nodes and edges of the user's psychological associative graph."""
-        links = db.query(AssociativeLink).filter_by(user_id=user_id).order_by(AssociativeLink.weight.desc()).limit(50).all()
+        uid_str = str(user_id)
+        links = db.query(AssociativeLink).filter_by(user_id=uid_str).order_by(AssociativeLink.weight.desc()).limit(50).all()
         
         nodes = set()
         edges = []
@@ -304,15 +308,16 @@ class CognitiveMemoryEngine:
         }
 
     @staticmethod
-    def consolidate_memories(db: Session, user_id: int) -> List[Dict[str, Any]]:
+    def consolidate_memories(db: Session, user_id: Any) -> List[Dict[str, Any]]:
         """Sleep-like consolidation process: clusters past episodes into higher-order mental schemas."""
-        episodes = db.query(EpisodicMemory).filter_by(user_id=user_id).all()
+        uid_str = str(user_id)
+        episodes = db.query(EpisodicMemory).filter_by(user_id=uid_str).all()
         if len(episodes) < 3:
             # Seed foundational schema if data is sparse
-            schemas = db.query(SchemaConsolidation).filter_by(user_id=user_id).all()
+            schemas = db.query(SchemaConsolidation).filter_by(user_id=uid_str).all()
             if not schemas:
                 initial_schema = SchemaConsolidation(
-                    user_id=user_id,
+                    user_id=uid_str,
                     theme="Cognitive Calibration Baseline",
                     consolidated_insight="Initial psychological baseline established: active deliberate breaks mitigate fatigue spikes effectively.",
                     evidence_count=1,
@@ -347,7 +352,7 @@ class CognitiveMemoryEngine:
                     f"across {data['total']} logged episodes."
                 )
                 
-                existing = db.query(SchemaConsolidation).filter_by(user_id=user_id, theme=theme).first()
+                existing = db.query(SchemaConsolidation).filter_by(user_id=uid_str, theme=theme).first()
                 if existing:
                     existing.consolidated_insight = insight
                     existing.evidence_count = data["total"]
@@ -355,7 +360,7 @@ class CognitiveMemoryEngine:
                     existing.updated_at = datetime.utcnow()
                 else:
                     new_sc = SchemaConsolidation(
-                        user_id=user_id,
+                        user_id=uid_str,
                         theme=theme,
                         consolidated_insight=insight,
                         evidence_count=data["total"],
@@ -368,10 +373,11 @@ class CognitiveMemoryEngine:
         return consolidations
 
     @staticmethod
-    def retrospective_query(db: Session, user_id: int, question: str) -> Dict[str, Any]:
+    def retrospective_query(db: Session, user_id: Any, question: str) -> Dict[str, Any]:
         """Provides grounded answers to 'When did I feel like this before and what worked?'."""
-        relevant = CognitiveMemoryEngine.retrieve_relevant_episodes(db, user_id, question, top_k=3)
-        schemas = db.query(SchemaConsolidation).filter_by(user_id=user_id).order_by(SchemaConsolidation.updated_at.desc()).limit(3).all()
+        uid_str = str(user_id)
+        relevant = CognitiveMemoryEngine.retrieve_relevant_episodes(db, uid_str, question, top_k=3)
+        schemas = db.query(SchemaConsolidation).filter_by(user_id=uid_str).order_by(SchemaConsolidation.updated_at.desc()).limit(3).all()
 
         if not relevant:
             return {

@@ -28,6 +28,7 @@ export default function Dashboard() {
   const [schemas, setSchemas] = useState<any[]>([]);
   const [ambientData, setAmbientData] = useState<any>(null);
   const [vaultOpen, setVaultOpen] = useState(false);
+  const [isOfflinePreview, setIsOfflinePreview] = useState(false);
 
   useEffect(() => {
     if (!localStorage.getItem("token")) {
@@ -78,8 +79,10 @@ export default function Dashboard() {
       if (ambRes.ok) {
         setAmbientData(await ambRes.json());
       }
+      setIsOfflinePreview(false);
     } catch (e) {
       console.warn("Backend unavailable or initial state, providing default dashboard baseline:", e);
+      setIsOfflinePreview(true);
       setState({ emotion: "focused", intensity: 0.65 });
       setChartData([
         { time: "09:00", intensity: 0.4, mood: "calm" },
@@ -157,6 +160,21 @@ export default function Dashboard() {
     <div className="min-h-screen bg-[#0B0F1A] text-white p-6 md:p-12 font-sans selection:bg-purple-900/50 flex flex-col items-center relative overflow-hidden">
       
       {/* Warning Banner Layer */}
+      {isOfflinePreview && (
+        <div className="w-full max-w-6xl mb-6 p-4 rounded-2xl bg-amber-950/40 border border-amber-600/40 text-amber-200 text-xs flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono text-[10px]">OFFLINE PREVIEW</span>
+            <span>Cognitive twin backend services are currently unreachable. Displaying cached baseline model telemetry.</span>
+          </div>
+          <button
+            onClick={() => fetchState()}
+            className="text-amber-400 hover:text-amber-200 underline font-mono text-xs"
+          >
+            Retry Connection
+          </button>
+        </div>
+      )}
+
       {riskAlert && (
         <div className="w-full max-w-6xl mb-8 animate-dropdown">
           <div className="bg-gradient-to-r from-red-900/90 to-orange-900/80 border border-red-500/50 shadow-2xl rounded-2xl p-4 flex justify-between items-center backdrop-blur-md relative overflow-hidden group">

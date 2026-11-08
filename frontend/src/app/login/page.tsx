@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { login, register } from "@/lib/api";
+import { login, register, demoLogin } from "@/lib/api";
 import { Shield, Sparkles, ArrowRight, BrainCircuit, KeyRound, User, Mail, AlertCircle } from "lucide-react";
 
 export default function LoginPage() {
@@ -50,9 +50,25 @@ export default function LoginPage() {
     }
   }
 
-  function handleDemoAccess() {
-    localStorage.setItem("token", "demo_cognitive_twin_token");
-    router.push("/dashboard");
+  async function handleDemoAccess() {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await demoLogin();
+      const data = await res.json();
+      if (data.token) {
+        localStorage.setItem("token", data.token);
+        router.push("/dashboard");
+        return;
+      }
+      throw new Error(data.error || "Failed to initialize demo credentials");
+    } catch (err: any) {
+      console.warn("Backend auth unavailable, allowing guest session fallback:", err);
+      localStorage.setItem("token", "demo_cognitive_twin_token");
+      router.push("/dashboard");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (

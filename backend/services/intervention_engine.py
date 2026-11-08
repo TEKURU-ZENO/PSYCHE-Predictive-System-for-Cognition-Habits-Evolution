@@ -33,11 +33,16 @@ def select_nudge(db: Session, user_id: str, emotion: str, intensity: float, cont
     
     policies = db.query(UserPolicy).filter_by(user_id=user_id, state=state_key).all()
     
+    # Query user dynamic exploration rate from SystemState
+    from models.system_state import SystemState
+    state_cfg = db.query(SystemState).filter_by(user_id=user_id).first()
+    epsilon = state_cfg.epsilon if state_cfg and state_cfg.epsilon is not None else 0.2
+
     action = ""
     q_score = 0.0
     visits = 0
 
-    if random.random() < 0.2 or not policies:
+    if random.random() < epsilon or not policies:
         action = get_fallback_nudge(emotion)
         pol = next((p for p in policies if p.action == action), None)
         if pol:

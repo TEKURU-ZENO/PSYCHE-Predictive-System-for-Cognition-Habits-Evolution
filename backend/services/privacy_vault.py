@@ -20,21 +20,21 @@ class PrivacyVaultService:
         moods = db.query(MoodLog).filter_by(user_id=uid_str).order_by(MoodLog.timestamp.desc()).limit(100).all()
         behaviors = db.query(BehaviorLog).filter_by(user_id=uid_str).order_by(BehaviorLog.timestamp.desc()).limit(100).all()
         triggers = db.query(Trigger).filter_by(user_id=uid_str).all()
-        episodes = db.query(EpisodicMemory).filter_by(user_id=user_id).all()
-        graph_links = db.query(AssociativeLink).filter_by(user_id=user_id).all()
-        schemas = db.query(SchemaConsolidation).filter_by(user_id=user_id).all()
-        post_mortems = db.query(PostMortemReport).filter_by(user_id=user_id).all()
-        alerts = db.query(ProactiveAlert).filter_by(user_id=user_id).all()
+        episodes = db.query(EpisodicMemory).filter_by(user_id=uid_str).all()
+        graph_links = db.query(AssociativeLink).filter_by(user_id=uid_str).all()
+        schemas = db.query(SchemaConsolidation).filter_by(user_id=uid_str).all()
+        post_mortems = db.query(PostMortemReport).filter_by(user_id=uid_str).all()
+        alerts = db.query(ProactiveAlert).filter_by(user_id=uid_str).all()
 
         return {
             "vault_metadata": {
-                "user_id": user_id,
+                "user_id": uid_str,
                 "exported_at": datetime.utcnow().isoformat(),
                 "platform": "Psych-AI Cognitive Twin Platform",
                 "format_version": "2.0.0"
             },
             "user_state": {
-                "emotion": user_state.emotion if user_state else "neutral",
+                "emotion": getattr(user_state, "current_emotion", getattr(user_state, "emotion", "neutral")),
                 "intensity": user_state.intensity if user_state else 0.5,
                 "updated_at": user_state.updated_at.isoformat() if user_state and user_state.updated_at else None
             },

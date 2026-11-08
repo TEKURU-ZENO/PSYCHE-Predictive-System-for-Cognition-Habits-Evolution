@@ -8,16 +8,12 @@ class PostMortemEngine:
     @staticmethod
     def conduct_post_mortem(
         db: Session,
-        user_id: int,
+        user_id: Any,
         failed_action: str,
         decision_hash: Optional[str] = None,
         weights_at_decision: Optional[Dict[str, float]] = None
     ) -> Dict[str, Any]:
-        """
-        Executes a forensic post-mortem when an intervention fails.
-        Identifies agent culpability, attributes failure root cause,
-        penalizes responsible agent reliability, and stores corrective adaptations.
-        """
+        uid_str = str(user_id)
         weights = weights_at_decision or {"strategy": 0.35, "prediction": 0.25, "meta": 0.20, "cognition": 0.20}
         failed_lower = failed_action.lower()
 
@@ -57,7 +53,7 @@ class PostMortemEngine:
 
         # 3. Create persistent Post-Mortem Report
         report = PostMortemReport(
-            user_id=user_id,
+            user_id=uid_str,
             decision_hash=decision_hash,
             failed_action=failed_action,
             responsible_agent=responsible_agent,

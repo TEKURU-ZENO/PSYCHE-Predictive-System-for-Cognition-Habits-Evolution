@@ -24,6 +24,13 @@ export async function register(data: any) {
   });
 }
 
+export async function demoLogin() {
+  return fetch(`${API_BASE}/auth/demo`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
 export async function getMe() {
   return fetch(`${API_BASE}/auth/me`, {
     method: "GET",

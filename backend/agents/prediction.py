@@ -12,7 +12,12 @@ class PredictionAgent(BaseAgent):
         if not user_id:
             return {"output": None, "confidence": 0.0}
             
-        db = get_new_session()
+        db = context.get("db")
+        should_close = False
+        if db is None:
+            db = get_new_session()
+            should_close = True
+
         try:
             def fetch_risk():
                 moods = db.query(MoodLog).filter(MoodLog.user_id == user_id).order_by(MoodLog.timestamp.asc()).limit(10).all()
@@ -29,4 +34,5 @@ class PredictionAgent(BaseAgent):
                 "confidence": result.get("confidence", 0.5)
             }
         finally:
-            db.close()
+            if should_close:
+                db.close()

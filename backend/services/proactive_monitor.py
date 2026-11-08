@@ -52,13 +52,14 @@ class ProactiveMonitor:
             return "late_night_vulnerability"
 
     @staticmethod
-    def run_ambient_scan(db: Session, user_id: int) -> Dict[str, Any]:
+    def run_ambient_scan(db: Session, user_id: Any) -> Dict[str, Any]:
         now = datetime.utcnow()
+        uid_str = str(user_id)
         phase = ProactiveMonitor.get_circadian_phase(now.hour)
         circadian_info = CIRCADIAN_DESCRIPTIONS.get(phase, CIRCADIAN_DESCRIPTIONS["morning_focus"])
 
         # 1. Fetch recent moods (last 6 entries) to measure velocity
-        recent_moods = db.query(MoodLog).filter_by(user_id=str(user_id)).order_by(MoodLog.timestamp.desc()).limit(6).all()
+        recent_moods = db.query(MoodLog).filter_by(user_id=uid_str).order_by(MoodLog.timestamp.desc()).limit(6).all()
         
         alerts_generated = []
 
@@ -69,7 +70,7 @@ class ProactiveMonitor:
                 intensity_trend = recent_moods[0].intensity - recent_moods[2].intensity
                 if intensity_trend > 0.15 or recent_moods[0].intensity > 0.75:
                     alert = ProactiveAlert(
-                        user_id=user_id,
+                        user_id=uid_str,
                         alert_type="burnout_velocity",
                         severity="critical" if recent_moods[0].intensity > 0.8 else "moderate",
                         title="Accelerated Stress Velocity Detected",
@@ -85,7 +86,7 @@ class ProactiveMonitor:
         # 3. Circadian Vulnerability Warning (Late Night)
         if phase == "late_night_vulnerability":
             alert = ProactiveAlert(
-                user_id=user_id,
+                user_id=uid_str,
                 alert_type="circadian_friction",
                 severity="moderate",
                 title="Late-Night Cognitive Exhaustion Risk",
@@ -99,12 +100,12 @@ class ProactiveMonitor:
             alerts_generated.append(alert)
 
         # 4. Preemptive Trigger Prevention
-        triggers = db.query(Trigger).filter_by(user_id=str(user_id)).all()
+        triggers = db.query(Trigger).filter_by(user_id=uid_str).all()
         if triggers and phase in ["afternoon_dip", "late_night_vulnerability"]:
             top_trigger = max(triggers, key=lambda t: t.frequency) if triggers else None
             if top_trigger and top_trigger.confidence > 0.6:
                 alert = ProactiveAlert(
-                    user_id=user_id,
+                    user_id=uid_str,
                     alert_type="preemptive_nudge",
                     severity="low",
                     title=f"Preemptive Safeguard: {top_trigger.event.capitalize()} Sensitivity",
@@ -121,7 +122,7 @@ class ProactiveMonitor:
 
         # Fetch active unacknowledged alerts for this user
         active_alerts = db.query(ProactiveAlert).filter_by(
-            user_id=user_id,
+            user_id=uid_str,
             is_acknowledged=False
         ).order_by(ProactiveAlert.created_at.desc()).limit(5).all()
 

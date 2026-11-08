@@ -6,7 +6,7 @@ class ProactiveAlert(Base):
     __tablename__ = "proactive_alerts"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
     alert_type = Column(String(50), nullable=False, index=True)  # circadian_friction, burnout_velocity, fatigue_trap, preemptive_nudge
     severity = Column(String(20), default="moderate")           # low, moderate, critical
     title = Column(String(150), nullable=False)
@@ -20,7 +20,7 @@ class CounterfactualBranch(Base):
     __tablename__ = "counterfactual_branches"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
     scenario = Column(Text, nullable=False)
     decision_hash = Column(String(64), nullable=True, index=True)
     branch_name = Column(String(100), nullable=False)           # e.g., "Push Through", "Take Break", "Cognitive Reframe"

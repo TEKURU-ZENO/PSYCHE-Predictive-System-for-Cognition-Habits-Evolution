@@ -24,6 +24,8 @@ export default function SimulatePage() {
   const [replayHash, setReplayHash] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamStep, setStreamStep] = useState(1);
+  const [isOfflinePreview, setIsOfflinePreview] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleOutcomeFeedback = async (success: boolean) => {
       setFeedbackSent(true);
@@ -42,6 +44,8 @@ export default function SimulatePage() {
     setStreamStep(1);
     setOutput(null);
     setFeedbackSent(null);
+    setErrorMessage(null);
+    setIsOfflinePreview(false);
 
     // Progressive real-time deliberation animation sequence
     const t1 = setTimeout(() => setStreamStep(2), 350);
@@ -53,6 +57,8 @@ export default function SimulatePage() {
       const res = await simulateAgentPipeline(scenario);
       if (res.ok) {
         const data = await res.json();
+        setIsOfflinePreview(false);
+        setErrorMessage(null);
         setStreamStep(6);
         setTimeout(() => {
           setOutput(data);
@@ -62,8 +68,10 @@ export default function SimulatePage() {
       } else {
         throw new Error("API call returned " + res.status);
       }
-    } catch (e) {
+    } catch (e: any) {
       console.warn("Backend unavailable, using simulated cognitive twin response:", e);
+      setIsOfflinePreview(true);
+      setErrorMessage("Live backend unavailable (" + (e?.message || "connection error") + "). Displaying offline cognitive simulation preview.");
       setStreamStep(6);
       setTimeout(() => {
         setOutput({
@@ -164,6 +172,15 @@ export default function SimulatePage() {
             "Simulate Impact"
           )}
         </button>
+
+        {errorMessage && (
+          <div className="mt-6 p-4 rounded-xl bg-amber-950/40 border border-amber-600/40 text-amber-200 text-xs flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono text-[10px]">OFFLINE PREVIEW</span>
+              <span>{errorMessage}</span>
+            </div>
+          </div>
+        )}
 
         {/* Phase 14 Real-Time Deliberation Streaming Console */}
         <div className="mt-6">

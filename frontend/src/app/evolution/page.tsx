@@ -12,6 +12,7 @@ export default function EvolutionDashboard() {
   const router = useRouter();
   const [data, setData] = useState<any>(null);
   const [metaProfile, setMetaProfile] = useState<any>(null);
+  const [isOfflinePreview, setIsOfflinePreview] = useState(false);
 
   useEffect(() => {
     if (!localStorage.getItem("token")) {
@@ -36,8 +37,10 @@ export default function EvolutionDashboard() {
       if (metaRes.ok) {
         setMetaProfile(await metaRes.json());
       }
+      setIsOfflinePreview(false);
     } catch(e) {
       console.warn("Backend unavailable, using rich cognitive twin baseline:", e);
+      setIsOfflinePreview(true);
       setData({
         trajectory: {
           direction: "improving",
@@ -105,6 +108,21 @@ export default function EvolutionDashboard() {
             </button>
         </div>
       </header>
+
+      {isOfflinePreview && (
+        <div className="w-full max-w-6xl mb-8 p-4 rounded-2xl bg-amber-950/40 border border-amber-600/40 text-amber-200 text-xs flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono text-[10px]">OFFLINE PREVIEW</span>
+            <span>Evolution backend services are currently unreachable. Displaying baseline cognitive trajectory models.</span>
+          </div>
+          <button
+            onClick={() => fetchData()}
+            className="text-amber-400 hover:text-amber-200 underline font-mono text-xs"
+          >
+            Retry Connection
+          </button>
+        </div>
+      )}
 
       <div className="w-full max-w-6xl grid lg:grid-cols-3 gap-8">
           

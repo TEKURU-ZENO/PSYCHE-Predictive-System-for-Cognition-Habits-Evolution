@@ -10,10 +10,15 @@ class MetaAgent(BaseAgent):
         if not user_id:
              return {"output": None, "confidence": 0.0}
 
-        db = get_new_session()
+        db = context.get("db")
+        should_close = False
+        if db is None:
+            db = get_new_session()
+            should_close = True
+
         try:
             def build_meta():
-                return generate_meta_profile(user_id, db)
+                return generate_meta_profile(db, user_id)
                 
             profile = await run_blocking(build_meta)
             return {
@@ -21,4 +26,5 @@ class MetaAgent(BaseAgent):
                 "confidence": 0.9 
             }
         finally:
-            db.close()
+            if should_close:
+                db.close()

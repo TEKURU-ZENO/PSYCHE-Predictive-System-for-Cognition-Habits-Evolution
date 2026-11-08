@@ -6,7 +6,7 @@ class EpisodicMemory(Base):
     __tablename__ = "episodic_memories"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
     episode_type = Column(String(50), nullable=False, index=True)  # breakthrough, friction_episode, decision_outcome, reframe_success
     scenario_text = Column(Text, nullable=False)
     trigger_context = Column(String(255), nullable=True)
@@ -26,7 +26,7 @@ class AssociativeLink(Base):
     __tablename__ = "associative_links"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
     source_node = Column(String(150), nullable=False, index=True)  # e.g., trigger:tight_deadline
     target_node = Column(String(150), nullable=False, index=True)  # e.g., distortion:catastrophizing
     relation_type = Column(String(50), nullable=False)            # triggers, mitigated_by, escalates_to
@@ -38,7 +38,7 @@ class SchemaConsolidation(Base):
     __tablename__ = "schema_consolidations"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
     theme = Column(String(100), nullable=False)                   # e.g., "Imposter Dissonance", "Work Burnout Loop"
     consolidated_insight = Column(Text, nullable=False)
     evidence_count = Column(Integer, default=1)

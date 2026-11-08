@@ -49,18 +49,19 @@ class CounterfactualEngine:
     @staticmethod
     def simulate_branches(
         db: Session,
-        user_id: int,
+        user_id: Any,
         scenario: str,
         current_emotion: str = "stressed",
         current_intensity: float = 0.7,
         decision_hash: Optional[str] = None
     ) -> List[Dict[str, Any]]:
+        uid_str = str(user_id)
         # 1. Fetch relevant user policies to pull empirical Q-values
-        policies = db.query(UserPolicy).filter_by(user_id=str(user_id)).all()
+        policies = db.query(UserPolicy).filter_by(user_id=uid_str).all()
         policy_map = {p.action: p.q_score for p in policies} if policies else {}
 
         # 2. Check autobiographical episodes for past precedent
-        past_episodes = db.query(EpisodicMemory).filter_by(user_id=user_id).order_by(EpisodicMemory.created_at.desc()).limit(20).all()
+        past_episodes = db.query(EpisodicMemory).filter_by(user_id=uid_str).order_by(EpisodicMemory.created_at.desc()).limit(20).all()
         precedent_outcomes = {}
         for ep in past_episodes:
             if ep.intervention_applied:
@@ -118,7 +119,7 @@ class CounterfactualEngine:
         # Persist top branches into DB for auditability
         for b in branches_output:
             record = CounterfactualBranch(
-                user_id=user_id,
+                user_id=uid_str,
                 scenario=scenario,
                 decision_hash=decision_hash,
                 branch_name=b["branch_name"],

@@ -23,7 +23,7 @@ class RedTeamEngine:
     @staticmethod
     def audit_synthesis(
         db: Optional[Session],
-        user_id: int,
+        user_id: Any,
         scenario: str,
         synthesis: Dict[str, Any],
         weights: Dict[str, float],
@@ -102,7 +102,7 @@ class RedTeamEngine:
         if db:
             try:
                 log = RedTeamAuditLog(
-                    user_id=user_id,
+                    user_id=str(user_id),
                     decision_hash=decision_hash,
                     critique_score=critique_score,
                     vulnerabilities_detected=json.dumps(vulnerabilities),

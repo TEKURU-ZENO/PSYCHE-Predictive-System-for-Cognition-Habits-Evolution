@@ -17,7 +17,7 @@ class Orchestrator:
 
     async def run(self, input_data):
         # 1. Perception Layer (Sequential)
-        context = {"input": input_data}
+        context = {"input": input_data, "db": input_data.get("db")}
         perception_res = await self.perception_agent.run(context)
         context["state"] = perception_res.get("output", {})
         

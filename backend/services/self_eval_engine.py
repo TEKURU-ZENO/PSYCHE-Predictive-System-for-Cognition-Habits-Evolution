@@ -75,11 +75,24 @@ def get_system_effectiveness(user_id: str):
         db.close()
 
 def get_agent_reliability_scores():
-    # In full prod, this sweeps Agent Timeout and Effectiveness ratios per agent from logs.
-    # We map deterministic bounds for MVP weighting
-    return {
-        "prediction": {"reliability_factor": 0.95, "timeout_rate": 0.01},
-        "strategy": {"reliability_factor": 0.85, "timeout_rate": 0.02},
-        "meta": {"reliability_factor": 0.88, "timeout_rate": 0.01},
-        "cognition": {"reliability_factor": 0.90, "timeout_rate": 0.03}
+    from services.reliability_service import ReliabilityService
+    all_metrics = ReliabilityService.get_all_metrics()
+    
+    agent_key_map = {
+        "prediction": "PredictionAgent",
+        "strategy": "StrategyAgent",
+        "meta": "MetaAgent",
+        "cognition": "CognitionAgent"
     }
+
+    result = {}
+    for short_key, full_name in agent_key_map.items():
+        m = all_metrics.get(full_name, {})
+        tot = max(1, m.get("total_invocations", 1))
+        timeouts = m.get("timeouts", 0)
+        rel = m.get("reliability_score", 0.90)
+        result[short_key] = {
+            "reliability_factor": rel,
+            "timeout_rate": round(timeouts / tot, 3)
+        }
+    return result

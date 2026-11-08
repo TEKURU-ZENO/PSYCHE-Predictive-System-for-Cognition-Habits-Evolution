@@ -80,28 +80,48 @@ def _generate_structured_fallback(prompt: str) -> Dict[str, Any]:
 
     # 2. Cognition Biases Prompt
     if "detect cognitive bias" in prompt_lower or '"biases"' in prompt_lower:
-        detected = []
-        if any(w in prompt_lower for w in ["always", "never", "everyone", "nobody"]):
-            detected.append({
-                "type": "Overgeneralization",
-                "reframe": "One challenging milestone does not define your total trajectory.",
-                "confidence": 0.82
-            })
-        if any(w in prompt_lower for w in ["useless", "failing", "can't", "impossible"]):
-            detected.append({
-                "type": "Catastrophizing",
-                "reframe": "Break the immediate problem into observable, bite-sized components.",
+        raw_candidates = context.get("signals", {}).get("raw_candidates", [])
+        if raw_candidates:
+            return {
+                "text": json.dumps({"biases": raw_candidates}),
                 "confidence": 0.85
-            })
-        if not detected:
-            detected.append({
-                "type": "Perfectionist Tension",
-                "reframe": "Focus on progressive momentum over idealized completion.",
-                "confidence": 0.75
-            })
+            }
+
+        candidates = context.get("signals", {}).get("candidates", [])
+        detected = []
+        if candidates:
+            for c in candidates:
+                detected.append({
+                    "type": c,
+                    "reframe": "Consider looking at this from another perspective.",
+                    "socratic_question": "What evidence supports or contradicts this conclusion?",
+                    "confidence": 0.85
+                })
+        else:
+            if any(w in prompt_lower for w in ["always", "never", "everyone", "nobody", "no one"]):
+                detected.append({
+                    "type": "Overgeneralization",
+                    "reframe": "One challenging milestone does not define your total trajectory.",
+                    "socratic_question": "Can you recall a time where this did not occur?",
+                    "confidence": 0.82
+                })
+            if any(w in prompt_lower for w in ["useless", "failing", "can't", "impossible", "loser"]):
+                detected.append({
+                    "type": "Catastrophizing",
+                    "reframe": "Break the immediate problem into observable, bite-sized components.",
+                    "socratic_question": "What is the most likely realistic outcome?",
+                    "confidence": 0.85
+                })
+            if not detected:
+                detected.append({
+                    "type": "All-or-Nothing Thinking",
+                    "reframe": "Focus on progressive momentum over idealized completion.",
+                    "socratic_question": "What exists between the two extremes?",
+                    "confidence": 0.75
+                })
         return {
             "text": json.dumps({"biases": detected}),
-            "confidence": 0.80
+            "confidence": 0.85
         }
 
     # 3. Simulation Projections Prompt

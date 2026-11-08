@@ -23,6 +23,7 @@ from services.counterfactual_engine import CounterfactualEngine
 from services.red_team_engine import RedTeamEngine
 from services.reliability_service import ReliabilityService
 from services.post_mortem_engine import PostMortemEngine
+from services.crisis_service import CrisisService
 from core.versioning import SystemVersionController
 
 router = APIRouter(prefix="/api/v1/agent", tags=["agent"])
@@ -52,6 +53,40 @@ async def respond(
     user: User = Depends(get_current_user), 
     db: Session = Depends(get_db)
 ):
+    # Mandatory Safety Gate: Crisis Circuit Breaker
+    crisis_check = CrisisService.evaluate(data.scenario, user_id=user.id, db=db)
+    if crisis_check["is_crisis"]:
+        log_event = EventLog(
+            user_id=user.id,
+            type="CRISIS_INTERCEPTION",
+            metadata_col=json.dumps({
+                "severity": crisis_check["severity"],
+                "triggers": crisis_check["triggers"],
+                "timestamp": "now"
+            })
+        )
+        db.add(log_event)
+        db.commit()
+
+        return {
+            "is_crisis": True,
+            "severity": crisis_check["severity"],
+            "crisis_response": crisis_check["response"],
+            "synthesized_payload": {
+                "final_decision": "EMERGENCY SAFETY INTERVENTION: Please contact 988 or a crisis helpline immediately.",
+                "reasoning": crisis_check["response"]["message"],
+                "confidence": 1.0,
+                "strategy_selected": "Crisis De-escalation & Helpline Connect",
+                "decision_hash": "crisis_circuit_breaker_triggered",
+                "is_crisis": True,
+                "intervention_intensity": "Critical",
+                "helplines": crisis_check["response"]["helplines"]
+            },
+            "agent_contributions": {},
+            "trust_tiers": {},
+            "learning_health": {"status": "suspended", "reason": "crisis_circuit_breaker"}
+        }
+
     # Phase 11: Long-term episodic memory retrieval reusing request db session
     past_memories = CognitiveMemoryEngine.retrieve_relevant_episodes(db, user.id, data.scenario, top_k=3)
 

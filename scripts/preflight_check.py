@@ -18,6 +18,9 @@ from services.red_team_engine import RedTeamEngine
 from services.memory_engine import CognitiveMemoryEngine, extract_keywords, compute_similarity
 from services.privacy_vault import PrivacyVaultService
 from services.reliability_service import ReliabilityService
+from services.crisis_service import CrisisService
+from services.cognition_engine import cognition_engine
+from services.prediction_engine import predict_next_mood
 from db.postgres import Base
 
 def run_diagnostics():
@@ -26,7 +29,7 @@ def run_diagnostics():
     print("=" * 70)
     
     passed_checks = 0
-    total_checks = 6
+    total_checks = 7
 
     # 1. System Version Matrix Registry
     print("\n[1/6] Verifying System Version Controller...")
@@ -129,11 +132,32 @@ def run_diagnostics():
     passed_checks += 1
 
     # 6. Observability & Agent Trust Tiers
-    print("\n[6/6] Verifying Agent Trust Tier Classification...")
+    print("\n[6/7] Verifying Agent Trust Tier Classification...")
     tier_trusted = ReliabilityService.classify_trust_tier(accuracy=0.92, impact=1.3)
     tier_degraded = ReliabilityService.classify_trust_tier(accuracy=0.40, impact=0.8)
     assert tier_trusted == "Trusted" and tier_degraded == "Degraded"
     print(f"  [OK] Trust Tier Calibration: Accuracy 92% -> {tier_trusted} | Accuracy 40% -> {tier_degraded}")
+    passed_checks += 1
+
+    # 7. Clinical Crisis Protocol & Ethical Circuit Breaker
+    print("\n[7/7] Verifying Clinical Crisis Circuit Breaker & Helplines...")
+    crisis_res = CrisisService.evaluate("I don't want to live anymore, I want to kill myself")
+    assert crisis_res["is_crisis"] is True
+    assert crisis_res["severity"] == "critical"
+    assert any("988" in str(h["contact"]) for h in crisis_res["response"]["helplines"])
+
+    # Verify false positive suppression on everyday benign phrases
+    benign_res = CrisisService.evaluate("This project deadline is killing me, I need to push code")
+    assert benign_res["is_crisis"] is False
+
+    # Verify CognitionEngine interception
+    cognition_crisis = cognition_engine.analyze("I want to end my life tonight")
+    assert cognition_crisis["is_crisis"] is True
+    assert len(cognition_crisis["biases"]) == 0
+
+    print("  [OK] Suicidal Ideation Interception: Hard Circuit Breaker Triggered")
+    print(f"  [OK] Verified Helplines Provisioned: {len(crisis_res['response']['helplines'])} vetted emergency resources")
+    print("  [OK] Benign Idiom False-Positive Suppression: Verified")
     passed_checks += 1
 
     print("\n" + "=" * 70)

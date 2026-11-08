@@ -7,6 +7,7 @@ from models.pattern import Trigger
 from models.user_state import UserState
 from services.prediction_engine import predict_next_mood, detect_early_warnings
 from services.simulation_engine import simulate_scenario
+from services.crisis_service import CrisisService
 from services.llm_service import generate_grounded_text
 from services.prompt_engine import build_context
 from pydantic import BaseModel
@@ -45,6 +46,17 @@ class SimulateRequest(BaseModel):
 
 @router.post("/simulate")
 def simulate(data: SimulateRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    crisis_check = CrisisService.evaluate(data.scenario, user_id=user.id, db=db)
+    if crisis_check["is_crisis"]:
+        return {
+            "is_crisis": True,
+            "crisis_response": crisis_check["response"],
+            "simulated_emotion": "critical_support",
+            "simulated_intensity": 1.0,
+            "cognitive_dissonance": 0.0,
+            "explanation": "Simulation halted: immediate crisis support resources provided."
+        }
+
     user_state = db.query(UserState).filter(UserState.user_id == user.id).first()
     emotion = user_state.current_emotion if user_state else "neutral"
     triggers = db.query(Trigger).filter(Trigger.user_id == user.id).all()

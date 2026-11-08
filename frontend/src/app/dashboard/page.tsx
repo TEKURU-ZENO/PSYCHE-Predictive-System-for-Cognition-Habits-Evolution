@@ -8,7 +8,8 @@ import LearningHealthCard from "@/components/LearningHealthCard";
 import RetrospectiveMemoryCard from "@/components/RetrospectiveMemoryCard";
 import AmbientMonitorBanner from "@/components/AmbientMonitorBanner";
 import PrivacyVaultModal from "@/components/PrivacyVaultModal";
-import { Lock } from "lucide-react";
+import CrisisSupportModal from "@/components/CrisisSupportModal";
+import { Lock, ShieldAlert } from "lucide-react";
 import { logMood, getCurrentState, logBehavior, analyzeText, getRisk, getPlaybook, getMetaProfile, getTelemetry, getConsolidatedSchemas, getAmbientStatus } from "@/lib/api";
 import { useRouter } from "next/navigation";
 
@@ -29,6 +30,8 @@ export default function Dashboard() {
   const [ambientData, setAmbientData] = useState<any>(null);
   const [vaultOpen, setVaultOpen] = useState(false);
   const [isOfflinePreview, setIsOfflinePreview] = useState(false);
+  const [crisisOpen, setCrisisOpen] = useState(false);
+  const [crisisData, setCrisisData] = useState<any>(null);
 
   useEffect(() => {
     if (!localStorage.getItem("token")) {
@@ -133,7 +136,13 @@ export default function Dashboard() {
       const res = await analyzeText(journalText);
       if (res.ok) {
         const data = await res.json();
-        setBiases(data.biases || []);
+        if (data.is_crisis) {
+          setCrisisData(data.crisis_response);
+          setCrisisOpen(true);
+          setBiases([]);
+        } else {
+          setBiases(data.biases || []);
+        }
       }
     } catch (e) { console.error(e); }
     setAnalyzing(false);
@@ -160,6 +169,35 @@ export default function Dashboard() {
     <div className="min-h-screen bg-[#0B0F1A] text-white p-6 md:p-12 font-sans selection:bg-purple-900/50 flex flex-col items-center relative overflow-hidden">
       
       {/* Warning Banner Layer */}
+      {crisisData && (
+        <div className="w-full max-w-6xl mb-6 animate-pulse">
+          <div className="bg-gradient-to-r from-red-950 via-red-900 to-rose-950 border-2 border-red-500 shadow-2xl rounded-2xl p-5 flex justify-between items-center">
+            <div className="flex items-center space-x-4">
+              <div className="bg-red-500/30 p-2.5 rounded-full border border-red-500/50">
+                <ShieldAlert className="w-6 h-6 text-red-300 animate-bounce" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="bg-red-600 px-2 py-0.5 rounded text-[10px] uppercase font-mono font-bold text-white tracking-widest">
+                    EMERGENCY SAFETY INTERVENTION
+                  </span>
+                  <span className="text-xs text-red-200">24/7 Free & Confidential Support Available</span>
+                </div>
+                <p className="text-sm text-red-100 font-medium mt-1">
+                  If you are experiencing acute distress or thoughts of self-harm, please connect with a live crisis counselor right now.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setCrisisOpen(true)}
+              className="px-4 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-bold transition shadow-lg shadow-red-600/30"
+            >
+              Open Crisis Helplines (988)
+            </button>
+          </div>
+        </div>
+      )}
+
       {isOfflinePreview && (
         <div className="w-full max-w-6xl mb-6 p-4 rounded-2xl bg-amber-950/40 border border-amber-600/40 text-amber-200 text-xs flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -294,6 +332,46 @@ export default function Dashboard() {
               >
                 {analyzing ? "Analyzing..." : "Analyze Thoughts"}
               </button>
+
+              {/* CBT Cognitive Distortion Insights */}
+              {biases && biases.length > 0 && (
+                <div className="mt-6 space-y-4 pt-6 border-t border-gray-800 animate-fade-in">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-purple-400 font-mono">
+                      CBT Distortion Analysis ({biases.length} Identified)
+                    </h4>
+                    <span className="text-[10px] text-gray-500 font-mono">Cognitive Behavioral Science</span>
+                  </div>
+                  <div className="space-y-3">
+                    {biases.map((b: any, idx: number) => (
+                      <div key={idx} className="p-4 rounded-2xl bg-[#0d1322] border border-purple-500/30 text-xs space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="px-2 py-0.5 rounded-md bg-purple-950/80 text-purple-300 font-semibold border border-purple-500/40">
+                            {b.type}
+                          </span>
+                          {b.quote && (
+                            <span className="text-gray-400 font-mono italic text-[11px] truncate max-w-[200px]">
+                              &ldquo;{b.quote}&rdquo;
+                            </span>
+                          )}
+                        </div>
+                        {b.socratic_question && (
+                          <div className="text-amber-300/90 bg-amber-950/20 p-2.5 rounded-xl border border-amber-500/20">
+                            <span className="font-semibold block text-[10px] uppercase font-mono text-amber-400 mb-0.5">Socratic Question:</span>
+                            {b.socratic_question}
+                          </div>
+                        )}
+                        {b.reframe && (
+                          <div className="text-emerald-300/90 bg-emerald-950/20 p-2.5 rounded-xl border border-emerald-500/20">
+                            <span className="font-semibold block text-[10px] uppercase font-mono text-emerald-400 mb-0.5">Empathetic CBT Reframe:</span>
+                            {b.reframe}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -407,6 +485,7 @@ export default function Dashboard() {
 
       <NudgeCard nudge={nudge} onClose={() => setNudge(null)} />
       <PrivacyVaultModal isOpen={vaultOpen} onClose={() => setVaultOpen(false)} />
+      <CrisisSupportModal isOpen={crisisOpen} onClose={() => setCrisisOpen(false)} crisisData={crisisData} />
     </div>
   );
 }

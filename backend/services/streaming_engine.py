@@ -8,6 +8,7 @@ from services.debate_engine import run_debate, synthesize_debate
 from services.red_team_engine import RedTeamEngine
 from services.memory_engine import CognitiveMemoryEngine
 from services.counterfactual_engine import CounterfactualEngine
+from services.crisis_service import CrisisService
 from core.versioning import SystemVersionController
 
 class DeliberationStreamingEngine:
@@ -20,6 +21,20 @@ class DeliberationStreamingEngine:
         user_id_str = str(user_id)
         db = get_new_session()
         try:
+            # --- Safety Gate: Crisis Circuit Breaker ---
+            crisis_check = CrisisService.evaluate(scenario, user_id=user_id_str, db=db)
+            if crisis_check["is_crisis"]:
+                yield json.dumps({
+                    "stage": "crisis_circuit_breaker",
+                    "step": 0,
+                    "is_crisis": True,
+                    "message": "EMERGENCY SAFETY INTERVENTION: Normal deliberation halted. Crisis resources provided.",
+                    "data": {
+                        "crisis_response": crisis_check["response"]
+                    }
+                }) + "\n\n"
+                return
+
             # --- Stage 1: Perception & Autobiographical Retrieval ---
             past_memories = CognitiveMemoryEngine.retrieve_relevant_episodes(db, user_id_str, scenario, top_k=3)
 

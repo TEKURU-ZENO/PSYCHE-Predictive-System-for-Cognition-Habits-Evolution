@@ -1,8 +1,20 @@
 import json
 from models.event import EventLog
 from db.postgres import get_new_session
+from services.crisis_service import CrisisService
 
 def run_ethical_guardrails(user_id: str, proposed_action: str) -> dict:
+    # 0. Crisis & Self-Harm Immediate Check on proposed action
+    crisis_check = CrisisService.evaluate(proposed_action)
+    if crisis_check["is_crisis"]:
+        return {
+            "blocked": True,
+            "reason": "Escalation Protocol: Acute self-harm or crisis marker detected in proposed action.",
+            "intervention_intensity": "Critical",
+            "override_action": "crisis_helpline_intervention",
+            "crisis_response": crisis_check["response"]
+        }
+
     db = get_new_session()
     try:
         # Prevent Harmful Action Loops: Check if the exact proposed action failed in the last 3 cycles
@@ -40,7 +52,8 @@ def run_ethical_guardrails(user_id: str, proposed_action: str) -> dict:
                     "blocked": True,
                     "reason": "Escalation Protocol: Extreme distress detected. DO NOT simulate therapist. Returning grounding suggestions and human support links.",
                     "intervention_intensity": "Critical",
-                    "override_action": "grounding_and_support_links"
+                    "override_action": "grounding_and_support_links",
+                    "crisis_response": CrisisService.generate_crisis_response(severity="critical")
                 }
 
         # 2. Dependency & Analysis Fatigue Detection

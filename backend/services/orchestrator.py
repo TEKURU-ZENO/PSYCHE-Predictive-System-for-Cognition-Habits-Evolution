@@ -4,6 +4,7 @@ from agents.cognition import CognitionAgent
 from agents.prediction import PredictionAgent
 from agents.strategy import StrategyAgent
 from agents.meta import MetaAgent
+from services.crisis_service import CrisisService
 
 class Orchestrator:
     def __init__(self):
@@ -16,6 +17,17 @@ class Orchestrator:
         ]
 
     async def run(self, input_data):
+        scenario = input_data.get("scenario") or ""
+        crisis_check = CrisisService.evaluate(scenario)
+        if crisis_check["is_crisis"]:
+            return {
+                "state": {"scenario": scenario, "is_crisis": True},
+                "cognition": {"output": [], "confidence": 1.0, "is_crisis": True},
+                "prediction": {"output": {"risk": "Critical Safety Escalation"}, "confidence": 1.0},
+                "strategy": {"output": {"action": "crisis_helpline_intervention", "crisis_response": crisis_check["response"]}, "confidence": 1.0},
+                "meta": {"output": {"approved": False, "guardrail_blocked": True, "reason": "Crisis Circuit Breaker"}, "confidence": 1.0}
+            }
+
         # 1. Perception Layer (Sequential)
         context = {"input": input_data, "db": input_data.get("db")}
         perception_res = await self.perception_agent.run(context)

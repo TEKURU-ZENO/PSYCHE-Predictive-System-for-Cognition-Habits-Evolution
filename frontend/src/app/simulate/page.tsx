@@ -11,6 +11,8 @@ import CounterfactualBranchingView from "@/components/CounterfactualBranchingVie
 import RedTeamCritiqueCard from "@/components/RedTeamCritiqueCard";
 import ForensicReplayModal from "@/components/ForensicReplayModal";
 import LiveDeliberationConsole from "@/components/LiveDeliberationConsole";
+import CrisisSupportModal from "@/components/CrisisSupportModal";
+import { ShieldAlert } from "lucide-react";
 
 export default function SimulatePage() {
   const router = useRouter();
@@ -26,6 +28,8 @@ export default function SimulatePage() {
   const [streamStep, setStreamStep] = useState(1);
   const [isOfflinePreview, setIsOfflinePreview] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [crisisOpen, setCrisisOpen] = useState(false);
+  const [crisisData, setCrisisData] = useState<any>(null);
 
   const handleOutcomeFeedback = async (success: boolean) => {
       setFeedbackSent(true);
@@ -59,6 +63,13 @@ export default function SimulatePage() {
         const data = await res.json();
         setIsOfflinePreview(false);
         setErrorMessage(null);
+        if (data.is_crisis || data.synthesized_payload?.is_crisis) {
+          setCrisisData(data.crisis_response || {
+            helplines: data.synthesized_payload?.helplines,
+            message: data.synthesized_payload?.reasoning
+          });
+          setCrisisOpen(true);
+        }
         setStreamStep(6);
         setTimeout(() => {
           setOutput(data);
@@ -70,6 +81,11 @@ export default function SimulatePage() {
       }
     } catch (e: any) {
       console.warn("Backend unavailable, using simulated cognitive twin response:", e);
+      const isCrisisText = /\b(kill\s*myself|end\s*my\s*life|want\s+to\s+die|commit\s+suicide|cut\s*myself|self[\s\-]*harm)\b/i.test(scenario);
+      if (isCrisisText) {
+        setCrisisOpen(true);
+        setCrisisData(null);
+      }
       setIsOfflinePreview(true);
       setErrorMessage("Live backend unavailable (" + (e?.message || "connection error") + "). Displaying offline cognitive simulation preview.");
       setStreamStep(6);
@@ -355,6 +371,12 @@ export default function SimulatePage() {
         isOpen={replayModalOpen}
         initialHash={replayHash}
         onClose={() => setReplayModalOpen(false)}
+      />
+
+      <CrisisSupportModal
+        isOpen={crisisOpen}
+        onClose={() => setCrisisOpen(false)}
+        crisisData={crisisData}
       />
     </div>
   );

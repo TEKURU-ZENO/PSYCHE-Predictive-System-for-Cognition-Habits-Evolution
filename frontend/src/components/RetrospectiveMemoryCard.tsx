@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { queryRetrospective, triggerConsolidation } from "@/lib/api";
 import { Brain, Sparkles, History, CheckCircle2, AlertCircle, RefreshCw, Layers } from "lucide-react";
+import CrisisSupportModal from "@/components/CrisisSupportModal";
 
 interface RetrospectiveMemoryProps {
   initialSchemas?: any[];
@@ -13,6 +14,8 @@ export default function RetrospectiveMemoryCard({ initialSchemas = [] }: Retrosp
   const [consolidating, setConsolidating] = useState(false);
   const [retroData, setRetroData] = useState<any>(null);
   const [schemas, setSchemas] = useState<any[]>(initialSchemas);
+  const [crisisOpen, setCrisisOpen] = useState(false);
+  const [crisisData, setCrisisData] = useState<any>(null);
 
   const handleQuery = async () => {
     if (!question.trim()) return;
@@ -21,7 +24,15 @@ export default function RetrospectiveMemoryCard({ initialSchemas = [] }: Retrosp
       const res = await queryRetrospective(question);
       if (res.ok) {
         const data = await res.json();
-        setRetroData(data);
+        // Crisis safety gate: if the backend detected a crisis phrase in the query,
+        // show the emergency support modal immediately and do not display recalled memories.
+        if (data.is_crisis) {
+          setCrisisData(data.crisis_response);
+          setCrisisOpen(true);
+          setRetroData(null);
+        } else {
+          setRetroData(data);
+        }
       }
     } catch (e) {
       console.error(e);
@@ -47,6 +58,7 @@ export default function RetrospectiveMemoryCard({ initialSchemas = [] }: Retrosp
 
   return (
     <div className="bg-[#111827] border border-gray-800 rounded-3xl p-6 md:p-8 shadow-2xl relative overflow-hidden">
+      <CrisisSupportModal isOpen={crisisOpen} onClose={() => setCrisisOpen(false)} crisisData={crisisData} />
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
         <div className="flex items-center space-x-3">
           <div className="p-2.5 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-400">

@@ -4,6 +4,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 import json
+from datetime import datetime
 
 from api.auth import get_current_user, get_db
 from models.user import User
@@ -62,15 +63,14 @@ async def respond(
             metadata_col=json.dumps({
                 "severity": crisis_check["severity"],
                 "triggers": crisis_check["triggers"],
-                "timestamp": "now"
+                "timestamp": datetime.utcnow().isoformat()
             })
         )
         db.add(log_event)
         db.commit()
 
         return {
-            "is_crisis": True,
-            "severity": crisis_check["severity"],
+            "is_crisis": True,            "severity": crisis_check["severity"],
             "crisis_response": crisis_check["response"],
             "synthesized_payload": {
                 "final_decision": "EMERGENCY SAFETY INTERVENTION: Please contact 988 or a crisis helpline immediately.",
@@ -114,7 +114,7 @@ async def respond(
         metadata_col=json.dumps({
             "confidence": final["confidence"],
             "weights": final["weights"],
-            "timestamp": "now"
+            "timestamp": datetime.utcnow().isoformat()
         })
     )
     db.add(log_event)

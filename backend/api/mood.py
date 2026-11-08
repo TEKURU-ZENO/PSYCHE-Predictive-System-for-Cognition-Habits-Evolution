@@ -11,6 +11,7 @@ from schemas.mood import LogMoodRequest
 from api.auth import get_db, get_current_user
 from services.intervention_engine import select_nudge
 from services.learning_engine import process_implicit_feedback
+from services.crisis_service import CrisisService
 
 router = APIRouter(prefix="/api/v1/mood", tags=["mood"])
 
@@ -29,6 +30,16 @@ def get_smoothed_mood(db: Session, user_id: str, new_intensity: float):
 
 @router.post("/log")
 def log_mood(data: LogMoodRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    # --- Safety Gate: Crisis screening on free-text note field ---
+    if data.note:
+        crisis_check = CrisisService.evaluate(data.note, user_id=user.id, db=db)
+        if crisis_check["is_crisis"]:
+            return {
+                "is_crisis": True,
+                "crisis_response": crisis_check["response"],
+                "msg": "Crisis Protocol Active: Mood log paused. Please review the emergency resources above."
+            }
+
     # 1. Log the mood itself
     mood = MoodLog(user_id=user.id, mood_type=data.mood_type, intensity=data.intensity)
     db.add(mood)

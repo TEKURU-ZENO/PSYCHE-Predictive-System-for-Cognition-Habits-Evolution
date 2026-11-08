@@ -10,7 +10,7 @@ import AmbientMonitorBanner from "@/components/AmbientMonitorBanner";
 import PrivacyVaultModal from "@/components/PrivacyVaultModal";
 import CrisisSupportModal from "@/components/CrisisSupportModal";
 import { Lock, ShieldAlert } from "lucide-react";
-import { logMood, getCurrentState, logBehavior, analyzeText, getRisk, getPlaybook, getMetaProfile, getTelemetry, getConsolidatedSchemas, getAmbientStatus } from "@/lib/api";
+import { logMood, getCurrentState, logBehavior, analyzeText, getRisk, getPlaybook, getMetaProfile, getTelemetry, getConsolidatedSchemas, getAmbientStatus, getDeepPrediction } from "@/lib/api";
 import { useRouter } from "next/navigation";
 
 export default function Dashboard() {
@@ -32,6 +32,7 @@ export default function Dashboard() {
   const [isOfflinePreview, setIsOfflinePreview] = useState(false);
   const [crisisOpen, setCrisisOpen] = useState(false);
   const [crisisData, setCrisisData] = useState<any>(null);
+  const [deepForecast, setDeepForecast] = useState<any>(null);
 
   useEffect(() => {
     if (!localStorage.getItem("token")) {
@@ -82,6 +83,14 @@ export default function Dashboard() {
       if (ambRes.ok) {
         setAmbientData(await ambRes.json());
       }
+
+      try {
+        const deepRes = await getDeepPrediction();
+        if (deepRes.ok) {
+          setDeepForecast(await deepRes.json());
+        }
+      } catch (_) { /* deep forecast is non-critical; fail silently */ }
+
       setIsOfflinePreview(false);
     } catch (e) {
       console.warn("Backend unavailable or initial state, providing default dashboard baseline:", e);
@@ -482,6 +491,69 @@ export default function Dashboard() {
       </div>
 
       </div>
+
+      {/* Deep Neural Forecast Panel */}
+      {deepForecast && (
+        <div className="mt-8 bg-gradient-to-tr from-[#111827] to-[#1a1030] border border-purple-800/30 rounded-3xl p-6 shadow-2xl">
+          <h2 className="text-sm font-bold text-purple-400 uppercase tracking-widest mb-5 flex items-center space-x-2">
+            <ShieldAlert size={16} className="text-purple-400" />
+            <span>Deep Neural Forecast — Burnout Hazard Projection</span>
+          </h2>
+          <div className="grid md:grid-cols-3 gap-5">
+            <div className="bg-[#0d1120] border border-gray-800 rounded-2xl p-5 flex flex-col items-center">
+              <div className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Burnout Hazard</div>
+              <div className={`text-5xl font-semibold mb-2 ${
+                deepForecast.burnout_hazard_rate > 0.7 ? "text-red-400" :
+                deepForecast.burnout_hazard_rate > 0.4 ? "text-amber-400" : "text-green-400"
+              }`}>
+                {(deepForecast.burnout_hazard_rate * 100).toFixed(0)}%
+              </div>
+              <div className={`text-xs px-3 py-1 rounded-full font-mono ${
+                deepForecast.burnout_hazard_level === "High" ? "bg-red-900/40 text-red-300" :
+                deepForecast.burnout_hazard_level === "Moderate" ? "bg-amber-900/40 text-amber-300" :
+                "bg-green-900/40 text-green-300"
+              }`}>
+                {deepForecast.burnout_hazard_level}
+              </div>
+            </div>
+            <div className="bg-[#0d1120] border border-gray-800 rounded-2xl p-5">
+              <div className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Predicted State</div>
+              <div className="text-xl font-semibold text-purple-300 capitalize mb-3">{deepForecast.dominant_forecast}</div>
+              {deepForecast.state_distribution && (
+                <div className="space-y-2">
+                  {Object.entries(deepForecast.state_distribution)
+                    .sort(([,a]: any, [,b]: any) => b - a)
+                    .slice(0, 3)
+                    .map(([state, prob]: any) => (
+                      <div key={state} className="flex items-center space-x-2">
+                        <div className="text-xs text-gray-500 w-16 capitalize truncate">{state}</div>
+                        <div className="flex-1 bg-gray-800 rounded-full h-1.5">
+                          <div className="bg-purple-500 h-1.5 rounded-full" style={{ width: `${(prob * 100).toFixed(0)}%` }} />
+                        </div>
+                        <div className="text-xs text-gray-400 w-8 text-right">{(prob * 100).toFixed(0)}%</div>
+                      </div>
+                    ))
+                  }
+                </div>
+              )}
+            </div>
+            <div className="bg-[#0d1120] border border-gray-800 rounded-2xl p-5">
+              <div className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Multi-Horizon</div>
+              {deepForecast.multi_horizon_projections?.map((proj: any, i: number) => (
+                <div key={i} className="flex items-center justify-between py-2 border-b border-gray-800/50 last:border-0">
+                  <span className="text-xs text-gray-500 font-mono">T+{i + 1}</span>
+                  <span className="text-sm text-gray-200 capitalize">{proj.dominant_state}</span>
+                  <span className={`text-xs px-2 py-0.5 rounded font-mono ${
+                    proj.burnout_hazard > 0.6 ? "bg-red-900/30 text-red-400" :
+                    proj.burnout_hazard > 0.35 ? "bg-amber-900/30 text-amber-400" :
+                    "bg-green-900/30 text-green-400"
+                  }`}>{(proj.burnout_hazard * 100).toFixed(0)}%</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       <NudgeCard nudge={nudge} onClose={() => setNudge(null)} />
       <PrivacyVaultModal isOpen={vaultOpen} onClose={() => setVaultOpen(false)} />

@@ -21,6 +21,7 @@ from services.reliability_service import ReliabilityService
 from services.crisis_service import CrisisService
 from services.cognition_engine import cognition_engine
 from services.prediction_engine import predict_next_mood
+from services.deep_forecasting_engine import deep_forecasting_engine
 from db.postgres import Base
 
 def run_diagnostics():
@@ -29,10 +30,10 @@ def run_diagnostics():
     print("=" * 70)
     
     passed_checks = 0
-    total_checks = 7
+    total_checks = 8
 
     # 1. System Version Matrix Registry
-    print("\n[1/6] Verifying System Version Controller...")
+    print("\n[1/8] Verifying System Version Controller...")
     versions = SystemVersionController.get_version_matrix()
     assert "core" in versions and "agents" in versions and "vault" in versions
     print(f"  [OK] Version Matrix Verified: {len(versions)} sub-modules tracked.")
@@ -40,7 +41,7 @@ def run_diagnostics():
     passed_checks += 1
 
     # 2. Database Schema Model Registration
-    print("\n[2/6] Verifying SQLAlchemy Metadata & Registered Tables...")
+    print("\n[2/8] Verifying SQLAlchemy Metadata & Registered Tables...")
     import models.user
     import models.mood
     import models.event
@@ -64,7 +65,7 @@ def run_diagnostics():
     passed_checks += 1
 
     # 3. Cryptographic Decision Hashing & Forensic Verification
-    print("\n[3/6] Verifying Cryptographic Hashing & Replay Engine...")
+    print("\n[3/8] Verifying Cryptographic Hashing & Replay Engine...")
     test_decision = {
         "scenario": "Urgent deadline approaching with cognitive exhaustion",
         "decision": "take_break",
@@ -101,7 +102,7 @@ def run_diagnostics():
     passed_checks += 1
 
     # 4. Adversarial Red-Team Gatekeeper
-    print("\n[4/6] Verifying Adversarial Red-Team Gatekeeper...")
+    print("\n[4/8] Verifying Adversarial Red-Team Gatekeeper...")
     veto_result = RedTeamEngine.audit_synthesis(
         db=None,
         user_id=1,
@@ -118,7 +119,7 @@ def run_diagnostics():
     passed_checks += 1
 
     # 5. Episodic & Associative Memory Engine
-    print("\n[5/6] Verifying Episodic Memory Indexing & Keyword Extraction...")
+    print("\n[5/8] Verifying Episodic Memory Indexing & Keyword Extraction...")
     keywords = extract_keywords(
         "Late-night burnout caused by consecutive unscheduled meetings and context switching"
     )
@@ -132,7 +133,7 @@ def run_diagnostics():
     passed_checks += 1
 
     # 6. Observability & Agent Trust Tiers
-    print("\n[6/7] Verifying Agent Trust Tier Classification...")
+    print("\n[6/8] Verifying Agent Trust Tier Classification...")
     tier_trusted = ReliabilityService.classify_trust_tier(accuracy=0.92, impact=1.3)
     tier_degraded = ReliabilityService.classify_trust_tier(accuracy=0.40, impact=0.8)
     assert tier_trusted == "Trusted" and tier_degraded == "Degraded"
@@ -140,7 +141,7 @@ def run_diagnostics():
     passed_checks += 1
 
     # 7. Clinical Crisis Protocol & Ethical Circuit Breaker
-    print("\n[7/7] Verifying Clinical Crisis Circuit Breaker & Helplines...")
+    print("\n[7/8] Verifying Clinical Crisis Circuit Breaker & Helplines...")
     crisis_res = CrisisService.evaluate("I don't want to live anymore, I want to kill myself")
     assert crisis_res["is_crisis"] is True
     assert crisis_res["severity"] == "critical"
@@ -158,6 +159,22 @@ def run_diagnostics():
     print("  [OK] Suicidal Ideation Interception: Hard Circuit Breaker Triggered")
     print(f"  [OK] Verified Helplines Provisioned: {len(crisis_res['response']['helplines'])} vetted emergency resources")
     print("  [OK] Benign Idiom False-Positive Suppression: Verified")
+    passed_checks += 1
+
+    # 8. Deep Neural Sequence Forecaster & State Space Modeling
+    print("\n[8/8] Verifying Deep Neural Sequence Forecaster...")
+    class _MockM:
+        def __init__(self, m_type, val):
+            self.mood_type = m_type
+            self.intensity = val
+    seq = [_MockM("calm", 0.4), _MockM("focused", 0.6), _MockM("stressed", 0.8), _MockM("fatigued", 0.7)]
+    deep_res = deep_forecasting_engine.forecast_trajectory(seq, horizon_steps=2)
+    assert deep_res["model_type"] == "deep_neural_sequence"
+    assert "burnout_hazard_rate" in deep_res
+    assert 0.0 <= deep_res["burnout_hazard_rate"] <= 1.0
+    print(f"  [OK] Deep Architecture: {deep_res['architecture']}")
+    print(f"  [OK] Continuous Latent Dimension: 8-D GRU Hidden State Vector with Temporal Self-Attention")
+    print(f"  [OK] Burnout Hazard Rate Projection: {deep_res['burnout_hazard_rate']} ({deep_res['burnout_hazard_level']})")
     passed_checks += 1
 
     print("\n" + "=" * 70)

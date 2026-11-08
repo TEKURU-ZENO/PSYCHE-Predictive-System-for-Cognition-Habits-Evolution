@@ -7,6 +7,7 @@ from api.auth import get_db, get_current_user
 from models.user import User
 from models.memory import EpisodicMemory, SchemaConsolidation
 from services.memory_engine import CognitiveMemoryEngine
+from services.crisis_service import CrisisService
 
 router = APIRouter(prefix="/api/v1/memory", tags=["memory"])
 
@@ -88,6 +89,14 @@ def get_schemas(db: Session = Depends(get_db), user: User = Depends(get_current_
 
 @router.post("/retrospective")
 def query_retrospective(data: RetrospectiveInput, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    crisis_check = CrisisService.evaluate(data.question, user_id=user.id, db=db)
+    if crisis_check["is_crisis"]:
+        return {
+            "is_crisis": True,
+            "crisis_response": crisis_check["response"],
+            "direct_answer": "Crisis Protocol Active: Please reach out to 988 or a crisis counselor immediately.",
+            "relevant_episodes": []
+        }
     return CognitiveMemoryEngine.retrospective_query(db, user.id, data.question)
 
 @router.post("/consolidate")

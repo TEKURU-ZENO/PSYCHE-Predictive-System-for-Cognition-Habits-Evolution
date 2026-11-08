@@ -6,11 +6,22 @@ from models.event import EventLog
 from schemas.behavior import LogBehaviorRequest
 from api.auth import get_db, get_current_user
 from services.memory_engine import detect_triggers
+from services.crisis_service import CrisisService
 
 router = APIRouter(prefix="/api/v1/behavior", tags=["behavior"])
 
 @router.post("/log")
 def log_behavior(data: LogBehaviorRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    # --- Safety Gate: Crisis screening on free-text context field ---
+    if data.context:
+        crisis_check = CrisisService.evaluate(data.context, user_id=user.id, db=db)
+        if crisis_check["is_crisis"]:
+            return {
+                "is_crisis": True,
+                "crisis_response": crisis_check["response"],
+                "msg": "Crisis Protocol Active: Behavior log paused. Please review the emergency resources above."
+            }
+
     behavior = BehaviorLog(
         user_id=user.id,
         type=data.type,

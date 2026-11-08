@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getEvolutionDashboard, getMetaProfile } from "@/lib/api";
+import { getEvolutionDashboard, getMetaProfile, getDeepPrediction } from "@/lib/api";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { ArrowUpRight, ArrowDownRight, ArrowRight, BrainCircuit, Activity, LineChart as ChartIcon } from "lucide-react";
 import ArchetypeDriftChart from "@/components/ArchetypeDriftChart";
@@ -12,6 +12,7 @@ export default function EvolutionDashboard() {
   const router = useRouter();
   const [data, setData] = useState<any>(null);
   const [metaProfile, setMetaProfile] = useState<any>(null);
+  const [deepForecast, setDeepForecast] = useState<any>(null);
   const [isOfflinePreview, setIsOfflinePreview] = useState(false);
 
   useEffect(() => {
@@ -24,9 +25,10 @@ export default function EvolutionDashboard() {
 
   async function fetchData() {
     try {
-      const [res, metaRes] = await Promise.all([
+      const [res, metaRes, deepRes] = await Promise.all([
         getEvolutionDashboard(),
-        getMetaProfile()
+        getMetaProfile(),
+        getDeepPrediction()
       ]);
       if (res.ok) {
         const d = await res.json();
@@ -36,6 +38,9 @@ export default function EvolutionDashboard() {
       }
       if (metaRes.ok) {
         setMetaProfile(await metaRes.json());
+      }
+      if (deepRes.ok) {
+        setDeepForecast(await deepRes.json());
       }
       setIsOfflinePreview(false);
     } catch(e) {
@@ -219,6 +224,87 @@ export default function EvolutionDashboard() {
           <div className="lg:col-span-3">
              <PostMortemFeed />
           </div>
+
+          {/* Deep Neural Forecast: GRU Burnout Hazard Panel */}
+          {deepForecast && (
+            <div className="lg:col-span-3 bg-gradient-to-tr from-[#111827] to-[#1a1030] border border-purple-800/30 rounded-3xl p-8 shadow-2xl">
+              <h3 className="text-sm font-bold text-purple-400 uppercase tracking-widest mb-6 flex items-center space-x-2">
+                <BrainCircuit size={16} />
+                <span>Deep Neural Forecast — GRU Latent State Trajectory</span>
+              </h3>
+              <div className="grid md:grid-cols-3 gap-6">
+                {/* Burnout Hazard Rate */}
+                <div className="bg-[#0d1120] border border-gray-800 rounded-2xl p-6 flex flex-col items-center">
+                  <div className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Burnout Hazard Rate</div>
+                  <div className={`text-5xl font-semibold mb-2 ${
+                    deepForecast.burnout_hazard_rate > 0.7 ? "text-red-400" :
+                    deepForecast.burnout_hazard_rate > 0.4 ? "text-amber-400" : "text-green-400"
+                  }`}>
+                    {(deepForecast.burnout_hazard_rate * 100).toFixed(0)}%
+                  </div>
+                  <div className={`text-xs px-3 py-1 rounded-full font-mono ${
+                    deepForecast.burnout_hazard_level === "High" ? "bg-red-900/40 text-red-300" :
+                    deepForecast.burnout_hazard_level === "Moderate" ? "bg-amber-900/40 text-amber-300" :
+                    "bg-green-900/40 text-green-300"
+                  }`}>
+                    {deepForecast.burnout_hazard_level}
+                  </div>
+                  <div className="mt-3 text-xs text-gray-600 text-center">
+                    Non-linear sigmoid projection via 8-D GRU hidden state
+                  </div>
+                </div>
+
+                {/* Dominant Forecast & Distribution */}
+                <div className="bg-[#0d1120] border border-gray-800 rounded-2xl p-6">
+                  <div className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">Predicted Emotional State</div>
+                  <div className="text-2xl font-semibold text-purple-300 capitalize mb-4">
+                    {deepForecast.dominant_forecast}
+                  </div>
+                  {deepForecast.state_distribution && (
+                    <div className="space-y-2">
+                      {Object.entries(deepForecast.state_distribution)
+                        .sort(([,a]: any, [,b]: any) => b - a)
+                        .slice(0, 4)
+                        .map(([state, prob]: any) => (
+                          <div key={state} className="flex items-center space-x-2">
+                            <div className="text-xs text-gray-500 w-20 capitalize truncate">{state}</div>
+                            <div className="flex-1 bg-gray-800 rounded-full h-1.5">
+                              <div
+                                className="bg-purple-500 h-1.5 rounded-full transition-all"
+                                style={{ width: `${(prob * 100).toFixed(0)}%` }}
+                              />
+                            </div>
+                            <div className="text-xs text-gray-400 w-10 text-right">{(prob * 100).toFixed(0)}%</div>
+                          </div>
+                        ))
+                      }
+                    </div>
+                  )}
+                </div>
+
+                {/* Multi-horizon projections */}
+                <div className="bg-[#0d1120] border border-gray-800 rounded-2xl p-6">
+                  <div className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">Multi-Horizon Projections</div>
+                  {deepForecast.multi_horizon_projections?.map((proj: any, i: number) => (
+                    <div key={i} className="flex items-center justify-between py-2 border-b border-gray-800/50 last:border-0">
+                      <span className="text-xs text-gray-500 font-mono">T+{i + 1}</span>
+                      <span className="text-sm text-gray-200 capitalize">{proj.dominant_state}</span>
+                      <span className={`text-xs px-2 py-0.5 rounded font-mono ${
+                        proj.burnout_hazard > 0.6 ? "bg-red-900/30 text-red-400" :
+                        proj.burnout_hazard > 0.35 ? "bg-amber-900/30 text-amber-400" :
+                        "bg-green-900/30 text-green-400"
+                      }`}>
+                        {(proj.burnout_hazard * 100).toFixed(0)}% ⚡
+                      </span>
+                    </div>
+                  ))}
+                  <div className="mt-4 text-xs text-gray-600">
+                    Architecture: {deepForecast.architecture?.replace(/_/g, " ")}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
       </div>
     </div>

@@ -76,6 +76,13 @@ export async function getMoodPrediction() {
   });
 }
 
+export async function getDeepPrediction() {
+  return fetch(`${API_BASE}/predict/deep`, {
+    method: "GET",
+    headers: getHeaders(),
+  });
+}
+
 export async function getRisk() {
   return fetch(`${API_BASE}/predict/risk`, {
     method: "GET",

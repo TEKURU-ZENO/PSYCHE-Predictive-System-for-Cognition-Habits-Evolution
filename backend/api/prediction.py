@@ -8,6 +8,7 @@ from models.user_state import UserState
 from services.prediction_engine import predict_next_mood, detect_early_warnings
 from services.simulation_engine import simulate_scenario
 from services.crisis_service import CrisisService
+from services.deep_forecasting_engine import deep_forecasting_engine
 from services.llm_service import generate_grounded_text
 from services.prompt_engine import build_context
 from pydantic import BaseModel
@@ -16,9 +17,18 @@ router = APIRouter(prefix="/api/v1/predict", tags=["prediction"])
 
 @router.get("/mood")
 def get_mood_prediction(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    moods = db.query(MoodLog).filter(MoodLog.user_id == user.id).order_by(MoodLog.timestamp.asc()).limit(10).all()
-    # compute EMA sequentially
-    return predict_next_mood(moods)
+    moods = db.query(MoodLog).filter(MoodLog.user_id == user.id).order_by(MoodLog.timestamp.asc()).limit(15).all()
+    classical_forecast = predict_next_mood(moods)
+    deep_forecast = deep_forecasting_engine.forecast_trajectory(moods)
+    return {
+        **classical_forecast,
+        "deep_forecast": deep_forecast
+    }
+
+@router.get("/deep")
+def get_deep_prediction(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    moods = db.query(MoodLog).filter(MoodLog.user_id == user.id).order_by(MoodLog.timestamp.asc()).limit(20).all()
+    return deep_forecasting_engine.forecast_trajectory(moods)
 
 @router.get("/risk")
 def get_risk(db: Session = Depends(get_db), user: User = Depends(get_current_user)):

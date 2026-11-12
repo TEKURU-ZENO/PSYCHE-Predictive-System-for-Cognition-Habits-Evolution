@@ -161,8 +161,8 @@ def run_diagnostics():
     print("  [OK] Benign Idiom False-Positive Suppression: Verified")
     passed_checks += 1
 
-    # 8. Deep Neural Sequence Forecaster & State Space Modeling
-    print("\n[8/8] Verifying Deep Neural Sequence Forecaster...")
+    # 8. Untrained Analytic GRU Trajectory Filter & State Space Modeling
+    print("\n[8/8] Verifying Untrained Analytic GRU Trajectory Filter...")
     class _MockM:
         def __init__(self, m_type, val):
             self.mood_type = m_type
@@ -170,9 +170,10 @@ def run_diagnostics():
     seq = [_MockM("calm", 0.4), _MockM("focused", 0.6), _MockM("stressed", 0.8), _MockM("fatigued", 0.7)]
     deep_res = deep_forecasting_engine.forecast_trajectory(seq, horizon_steps=2)
     assert deep_res["model_type"] == "deep_neural_sequence"
+    assert deep_res["weights_trained"] is False
     assert "burnout_hazard_rate" in deep_res
     assert 0.0 <= deep_res["burnout_hazard_rate"] <= 1.0
-    print(f"  [OK] Deep Architecture: {deep_res['architecture']}")
+    print(f"  [OK] Architecture: {deep_res['architecture']} (weights_trained={deep_res['weights_trained']})")
     print(f"  [OK] Continuous Latent Dimension: 8-D GRU Hidden State Vector with Temporal Self-Attention")
     print(f"  [OK] Burnout Hazard Rate Projection: {deep_res['burnout_hazard_rate']} ({deep_res['burnout_hazard_level']})")
     passed_checks += 1

@@ -1,13 +1,11 @@
 """
-Psych-AI Platform - Deep Sequence & Neural State-Space Forecasting Engine
-Implements non-linear Gated Recurrent Unit (GRU) latent psychological state transitions,
-scaled dot-product temporal self-attention over longitudinal sequences, and deep
-hazard-rate burnout projections.
+Psych-AI Platform - Untrained Analytic GRU State-Space Trajectory Filter
+Implements Gated Recurrent Unit (GRU) state-space gate equations and scaled dot-product
+temporal self-attention in pure Python stdlib (`math`) using deterministic, UNTRAINED
+analytic priors (`weights_trained: False`, no PyTorch/TensorFlow/Keras training).
 
-Distinction from Classical Forecasting:
-- Classical (Holt-Markov): Linear trend extrapolation + 1st-order discrete Markov matrix.
-- Deep (Neural Sequence): Continuous 8-D latent state embeddings, non-linear gated temporal
-  memory (handling long-range stress accumulation), temporal self-attention, and non-linear hazard modeling.
+Paired with the empirical Holt double-exponential smoothing + Markov transition model
+in `prediction_engine.py`, which performs actual sequence-fitted statistical forecasting.
 """
 
 import math
@@ -119,8 +117,9 @@ class TemporalSelfAttention:
 
 class DeepForecastingEngine:
     """
-    Deep Neural Sequence Forecaster for Psychological Trajectories.
-    Combines continuous GRU state-space transitions with temporal self-attention.
+    Untrained Analytic-Prior Gated Trajectory Filter for Psychological Sequences.
+    Executes GRU gate equations and temporal self-attention with fixed deterministic
+    priors (no gradient training); emits `weights_trained=False` for full transparency.
     """
 
     def __init__(self):
@@ -171,11 +170,17 @@ class DeepForecastingEngine:
         computes temporal attention, and produces deep probability distribution + burnout hazard.
         """
         if not moods or len(moods) < 3:
+            curr_len = len(moods) if moods else 0
             return {
                 "model_type": "deep_neural_sequence",
+                "architecture": "GRU_Latent_Transitions_with_Temporal_Self_Attention",
+                "weights_trained": False,
+                "weight_source": "deterministic_analytic_prior",
                 "status": "insufficient_sequence",
                 "min_required": 3,
-                "current_length": len(moods) if moods else 0
+                "required_sequence": 3,
+                "current_length": curr_len,
+                "sequence_length": curr_len,
             }
 
         # 1. Forward Pass through Sequential GRU Cell

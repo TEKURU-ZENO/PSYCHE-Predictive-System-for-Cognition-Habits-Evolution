@@ -169,6 +169,12 @@ export default function DeepForecastCard({ deepForecast, compact = false }: Deep
               </div>
             </div>
           )}
+
+          {deepForecast.weights_trained !== true && (
+            <div className="text-[11px] text-gray-400 bg-black/30 border border-gray-800/80 rounded-lg px-3 py-2">
+              Architecture disclosure: Pure-Python GRU gate equations using fixed analytic priors (untrained; no neural training or PyTorch/TF weights). Paired with the fitted Holt-Markov statistical model.
+            </div>
+          )}
         </div>
       )}
     </div>

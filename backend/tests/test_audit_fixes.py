@@ -147,7 +147,11 @@ class AuditRemediationTests(unittest.TestCase):
         self.assertTrue(eval_passive["is_crisis"])
 
         helpline_contacts = [h["contact"] for h in eval_passive["response"]["helplines"]]
+        helpline_names = [h["name"] for h in eval_passive["response"]["helplines"]]
         self.assertTrue(any("14416" in c for c in helpline_contacts))
+        self.assertIn("988 Suicide & Crisis Lifeline", helpline_names)
+        self.assertIn("The Trevor Project", helpline_names)
+        self.assertIn("Veterans Crisis Line", helpline_names)
 
     def test_proactive_circadian_tz_offset_and_alert_dedup(self):
         # Verify timezone localization shifts hour cleanly from UTC midnight
@@ -199,6 +203,8 @@ class AuditRemediationTests(unittest.TestCase):
             SimpleNamespace(mood_type="anxious", intensity=0.82, timestamp=datetime(2026, 5, 1, 21, 0)),
         ]
         forecast = deep_forecasting_engine.forecast_trajectory(moods, horizon_steps=3)
+        self.assertIs(forecast["weights_trained"], False)
+        self.assertEqual(forecast["weight_source"], "deterministic_analytic_prior")
         self.assertIn("burnout_hazard_ci", forecast)
         low, high = forecast["burnout_hazard_ci"]
         self.assertLessEqual(low, forecast["burnout_hazard_rate"])

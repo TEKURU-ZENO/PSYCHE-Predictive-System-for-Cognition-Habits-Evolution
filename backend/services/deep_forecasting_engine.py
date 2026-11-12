@@ -245,6 +245,9 @@ class DeepForecastingEngine:
         return {
             "model_type": "deep_neural_sequence",
             "architecture": "GRU_Latent_Transitions_with_Temporal_Self_Attention",
+            "weights_trained": False,
+            "weight_source": "deterministic_analytic_prior",
+            "calibrated_statistical_companion": "holt_double_exponential_markov",
             "sequence_length": len(moods),
             "dominant_forecast": dominant_predicted_emotion,
             "state_distribution": distribution_dict,

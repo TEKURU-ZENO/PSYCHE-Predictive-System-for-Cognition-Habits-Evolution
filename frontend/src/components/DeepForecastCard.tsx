@@ -14,6 +14,8 @@ export interface DeepForecastData {
   status?: string;
   model_type?: string;
   architecture?: string;
+  weights_trained?: boolean;
+  weight_source?: string;
   sequence_length?: number;
   required_sequence?: number;
   message?: string;
@@ -54,13 +56,15 @@ export default function DeepForecastCard({ deepForecast, compact = false }: Deep
         <div className="flex items-center space-x-2">
           <Activity size={18} className="text-purple-400" />
           <h3 className="text-sm font-bold text-gray-200 tracking-wide">
-            Deep Neural Sequence Forecast
+            Gated Latent Trajectory Filter
           </h3>
         </div>
         <span className="text-[10px] font-mono bg-purple-950/60 border border-purple-500/30 text-purple-300 px-2.5 py-0.5 rounded-full">
-          {deepForecast.architecture === "GRU_Latent_Transitions_with_Temporal_Self_Attention"
-            ? "GRU + Self-Attention"
-            : deepForecast.model_type || "Deep Sequence"}
+          {deepForecast.weights_trained === false
+            ? "Analytic GRU Prior (Untrained)"
+            : deepForecast.architecture === "GRU_Latent_Transitions_with_Temporal_Self_Attention"
+            ? "Analytic GRU Prior (Untrained)"
+            : deepForecast.model_type || "State-Space Filter"}
         </span>
       </div>
 

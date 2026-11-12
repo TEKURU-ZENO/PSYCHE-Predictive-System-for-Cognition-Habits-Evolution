@@ -52,6 +52,15 @@ CRISIS_HELPLINES = [
         "description": "24/7 confidential suicide prevention and crisis intervention for LGBTQ young people."
     },
     {
+        "name": "Veterans Crisis Line",
+        "region": "United States",
+        "contact": "Dial 988, then press 1 (or Text 838255)",
+        "type": "call_or_text",
+        "action_url": "tel:988",
+        "web_url": "https://www.veteranscrisisline.net",
+        "description": "24/7 confidential crisis line connecting veterans in crisis and their families."
+    },
+    {
         "name": "Samaritans & NHS 111",
         "region": "United Kingdom",
         "contact": "Call 116 123 (Samaritans) or 111 (NHS)",

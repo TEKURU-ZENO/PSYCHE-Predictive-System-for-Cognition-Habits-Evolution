@@ -9,8 +9,9 @@ circuit breaker, returning verified, accessible, free, and confidential human cr
 """
 
 import re
+import unicodedata
 from typing import Dict, Any, List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 # Vetted, free, confidential 24/7 crisis helplines and resources
 CRISIS_HELPLINES = [
@@ -33,6 +34,15 @@ CRISIS_HELPLINES = [
         "description": "Free 24/7 support from a trained crisis counselor over SMS text."
     },
     {
+        "name": "Tele-MANAS National Helpline",
+        "region": "India",
+        "contact": "14416 or 1-800-891-4416",
+        "type": "call",
+        "action_url": "tel:14416",
+        "web_url": "https://telemanas.mohfw.gov.in",
+        "description": "Government of India 24/7 free, confidential mental health counseling in 20+ languages."
+    },
+    {
         "name": "The Trevor Project",
         "region": "LGBTQ Youth (US)",
         "contact": "1-866-488-7386 or Text START to 678-678",
@@ -40,15 +50,6 @@ CRISIS_HELPLINES = [
         "action_url": "tel:18664887386",
         "web_url": "https://www.thetrevorproject.org",
         "description": "24/7 confidential suicide prevention and crisis intervention for LGBTQ young people."
-    },
-    {
-        "name": "Veterans Crisis Line",
-        "region": "United States",
-        "contact": "Dial 988, then press 1 (or Text 838255)",
-        "type": "call_or_text",
-        "action_url": "tel:988",
-        "web_url": "https://www.veteranscrisisline.net",
-        "description": "24/7 confidential crisis line connecting veterans in crisis and their families."
     },
     {
         "name": "Samaritans & NHS 111",
@@ -70,12 +71,13 @@ CRISIS_HELPLINES = [
     }
 ]
 
-# High-sensitivity clinical regex patterns for self-harm and suicide ideation
+# High-sensitivity clinical regex patterns for self-harm and suicide ideation (explicit & passive)
 EXPLICIT_SUICIDE_PATTERNS = [
-    r"\b(?:kill|killing)\s+(?:my\s*self|myself)\b",
+    r"\b(?:kill|killing|off)\s+(?:my\s*self|myself)\b",
     r"\b(?:end|ending)\s+(?:my\s*life|it\s*all)\b",
-    r"\b(?:want|wish)\s+to\s+die\b",
+    r"\b(?:want|wish)\s+to\s+(?:die|disappear\s+forever|stop\s+existing)\b",
     r"\b(?:commit|committing)\s+suicide\b",
+    r"\bsuicidal(?:\s+thoughts|\s+ideation)?\b",
     r"\bbetter\s+off\s+dead\b",
     r"\bno\s+(?:reason|point)\s+(?:to|in)\s+liv(?:e|ing)\b",
     r"\bcan(?:'t|\s+not)\s+go\s+on\s+living\b",
@@ -86,8 +88,10 @@ EXPLICIT_SUICIDE_PATTERNS = [
     r"\bjump\s+off\s+(?:a\s+)?(?:bridge|roof|building)\b",
     r"\b(?:wrote|written|writing)\s+(?:a\s+)?(?:suicide|goodbye)\s+note\b",
     r"\bsay(?:ing)?\s+goodbye\s+(?:to\s+everyone|forever)\b",
-    r"\bdon(?:'t|\s+not)\s+want\s+to\s+wake\s+up\b",
+    r"\bdon(?:'t|\s+not)\s+want\s+to\s+(?:wake\s+up|exist|be\s+alive)\b",
+    r"\btired\s+of\s+(?:waking\s+up|being\s+alive)\b",
     r"\bwish\s+I\s+(?:was|were)\s+dead\b",
+    r"\bworld\s+would\s+be\s+better\s+(?:off\s+)?without\s+me\b",
 ]
 
 SELF_HARM_PATTERNS = [
@@ -118,6 +122,22 @@ BENIGN_EXCLUSION_PATTERNS = [
     r"\bfear\s+of\s+dying\b",
 ]
 
+_LEET_MAP = str.maketrans({"1": "i", "3": "e", "0": "o", "@": "a", "$": "s", "5": "s"})
+
+
+def _normalize_for_screening(text: str) -> str:
+    """Strips zero-width evasion characters and normalizes common leetspeak tokens."""
+    norm = unicodedata.normalize("NFKC", text)
+    norm = re.sub(r"[\u200b-\u200f\ufeff]", "", norm).lower()
+    # Apply leetspeak de-obfuscation only on alphanumeric tokens containing letters + digits/symbols
+    tokens = []
+    for tok in norm.split():
+        if any(c.isalpha() for c in tok) and any(c in "130@$5" for c in tok):
+            tokens.append(tok.translate(_LEET_MAP))
+        else:
+            tokens.append(tok)
+    return " ".join(tokens)
+
 
 class CrisisService:
     """
@@ -139,8 +159,7 @@ class CrisisService:
                 "response": None
             }
 
-        cleaned = text.strip()
-        lower = cleaned.lower()
+        lower = _normalize_for_screening(text.strip())
 
         # Mask out benign idioms to avoid false positives on everyday figures of speech
         eval_text = lower
@@ -167,7 +186,6 @@ class CrisisService:
             triggers.append("self_harm")
 
         if matched_despair and not is_crisis:
-            # Despair alone is flagged as elevated concern
             severity = "elevated"
             triggers.append("acute_hopelessness")
 
@@ -205,10 +223,10 @@ class CrisisService:
             ),
             "immediate_steps": [
                 "Reach out to one of the free, confidential 24/7 crisis lines listed below immediately.",
-                "If you are in immediate danger of hurting yourself, please call 911 (or your local emergency number) or go to the nearest emergency room.",
+                "If you are in immediate danger of hurting yourself, please call 911 / 112 (or your local emergency number) or go to the nearest emergency room.",
                 "Reach out to a trusted family member, friend, therapist, or doctor and let them know how you are feeling.",
                 "Stay in a safe environment and step away from anything you could use to harm yourself."
             ],
             "helplines": CRISIS_HELPLINES,
-            "timestamp": datetime.utcnow().isoformat() + "Z"
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }

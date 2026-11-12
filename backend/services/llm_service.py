@@ -1,16 +1,27 @@
+from collections import OrderedDict
 import os
 import json
 import hashlib
 import urllib.request
 import urllib.error
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from services.safety_filter import sanitize
 
-PROMPT_CACHE = {}
+MAX_CACHE_SIZE = 256
+PROMPT_CACHE: "OrderedDict[str, Dict[str, Any]]" = OrderedDict()
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
 LLM_MODEL = os.getenv("LLM_MODEL", "gpt-4o-mini")
+
+
+def _cache_set(key: str, value: Dict[str, Any]) -> None:
+    if key in PROMPT_CACHE:
+        PROMPT_CACHE.move_to_end(key)
+    PROMPT_CACHE[key] = value
+    if len(PROMPT_CACHE) > MAX_CACHE_SIZE:
+        PROMPT_CACHE.popitem(last=False)
+
 
 def _call_live_llm(prompt: str, temperature: float = 0.3) -> Dict[str, Any]:
     """Calls OpenAI-compatible completion endpoint via standard library."""
@@ -43,19 +54,20 @@ def _call_live_llm(prompt: str, temperature: float = 0.3) -> Dict[str, Any]:
             "confidence": 0.88
         }
 
-def _generate_structured_fallback(prompt: str) -> Dict[str, Any]:
+
+def _generate_structured_fallback(prompt: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """
     Generates deterministic, schema-compliant JSON structures when running without
     external LLM keys (offline development, CI/CD, tests).
     """
     prompt_lower = prompt.lower()
+    ctx = context or {}
 
     # 1. Synthesis / Debate Fusion Prompt
     if "final_decision" in prompt_lower:
-        # Extract arguments if embedded
         has_push = "push" in prompt_lower
         has_burnout = "burnout" in prompt_lower or "fatigue" in prompt_lower or "risk" in prompt_lower
-        
+
         conflicts = []
         if has_push and has_burnout:
             conflicts.append("Prediction risk forecast conflicts with Strategy aggressive execution.")
@@ -80,14 +92,14 @@ def _generate_structured_fallback(prompt: str) -> Dict[str, Any]:
 
     # 2. Cognition Biases Prompt
     if "detect cognitive bias" in prompt_lower or '"biases"' in prompt_lower:
-        raw_candidates = context.get("signals", {}).get("raw_candidates", [])
+        raw_candidates = ctx.get("signals", {}).get("raw_candidates", [])
         if raw_candidates:
             return {
                 "text": json.dumps({"biases": raw_candidates}),
                 "confidence": 0.85
             }
 
-        candidates = context.get("signals", {}).get("candidates", [])
+        candidates = ctx.get("signals", {}).get("candidates", [])
         detected = []
         if candidates:
             for c in candidates:
@@ -112,16 +124,9 @@ def _generate_structured_fallback(prompt: str) -> Dict[str, Any]:
                     "socratic_question": "What is the most likely realistic outcome?",
                     "confidence": 0.85
                 })
-            if not detected:
-                detected.append({
-                    "type": "All-or-Nothing Thinking",
-                    "reframe": "Focus on progressive momentum over idealized completion.",
-                    "socratic_question": "What exists between the two extremes?",
-                    "confidence": 0.75
-                })
         return {
             "text": json.dumps({"biases": detected}),
-            "confidence": 0.85
+            "confidence": 0.85 if detected else 0.70
         }
 
     # 3. Simulation Projections Prompt
@@ -146,23 +151,25 @@ def _generate_structured_fallback(prompt: str) -> Dict[str, Any]:
         "confidence": 0.85
     }
 
-def call_llm(prompt: str, temperature: float = 0.3) -> Dict[str, Any]:
+
+def call_llm(prompt: str, temperature: float = 0.3, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     cache_key = hashlib.sha256(f"{prompt}_{temperature}".encode('utf-8')).hexdigest()
     if cache_key in PROMPT_CACHE:
+        PROMPT_CACHE.move_to_end(cache_key)
         return PROMPT_CACHE[cache_key]
 
     if OPENAI_API_KEY:
         try:
             res = _call_live_llm(prompt, temperature)
-            PROMPT_CACHE[cache_key] = res
+            _cache_set(cache_key, res)
             return res
         except Exception as e:
-            # Fall back gracefully to structured generator
             print(f"Warning: Live LLM call failed ({e}). Utilizing structured engine fallback.")
 
-    res = _generate_structured_fallback(prompt)
-    PROMPT_CACHE[cache_key] = res
+    res = _generate_structured_fallback(prompt, context=context)
+    _cache_set(cache_key, res)
     return res
+
 
 def build_prompt(context: Dict[str, Any], instruction: str) -> str:
     return f"""
@@ -188,21 +195,21 @@ OUTPUT (JSON ONLY):
 }}
 """
 
+
 def generate_grounded_text(context: Dict[str, Any], instruction: str) -> Dict[str, Any]:
     prompt = build_prompt(context, instruction)
     try:
-        resp = call_llm(prompt)
-        # Attempt extracting "text" key if JSON encoded
+        resp = call_llm(prompt, context=context)
         raw_text = resp.get("text", "")
         if isinstance(raw_text, str) and raw_text.strip().startswith("{"):
             try:
                 parsed = json.loads(raw_text)
                 if "text" in parsed:
-                    resp["text"] = parsed["text"]
+                    resp = {**resp, "text": parsed["text"]}
             except Exception:
                 pass
 
-        safe_resp = sanitize(resp, resp.get("confidence", 0.0))
+        safe_resp = sanitize(dict(resp), resp.get("confidence", 0.0))
         return safe_resp
-    except Exception as e:
+    except Exception:
         return {"text": "LLM generation unavailable. Utilizing foundational engine output.", "confidence": 0.0}

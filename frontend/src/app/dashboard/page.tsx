@@ -9,6 +9,7 @@ import RetrospectiveMemoryCard from "@/components/RetrospectiveMemoryCard";
 import AmbientMonitorBanner from "@/components/AmbientMonitorBanner";
 import PrivacyVaultModal from "@/components/PrivacyVaultModal";
 import CrisisSupportModal from "@/components/CrisisSupportModal";
+import DeepForecastCard from "@/components/DeepForecastCard";
 import { Lock, ShieldAlert } from "lucide-react";
 import { logMood, getCurrentState, logBehavior, analyzeText, getRisk, getPlaybook, getMetaProfile, getTelemetry, getConsolidatedSchemas, getAmbientStatus, getDeepPrediction } from "@/lib/api";
 import { useRouter } from "next/navigation";
@@ -27,6 +28,7 @@ export default function Dashboard() {
   const [metaProfile, setMetaProfile] = useState<any>(null);
   const [telemetry, setTelemetry] = useState<any>(null);
   const [schemas, setSchemas] = useState<any[]>([]);
+  const [actionToast, setActionToast] = useState<string | null>(null);
   const [ambientData, setAmbientData] = useState<any>(null);
   const [vaultOpen, setVaultOpen] = useState(false);
   const [isOfflinePreview, setIsOfflinePreview] = useState(false);
@@ -127,15 +129,30 @@ export default function Dashboard() {
       if (res.ok) {
         const data = await res.json();
         if (data.nudge) setNudge(data.nudge);
+        setActionToast(`Logged ${mood} state (${Math.round(intensity * 100)}% intensity)`);
+      } else {
+        setActionToast(`Failed to sync mood log (${res.status})`);
       }
-    } catch (e) { console.error(e); }
+    } catch (e) {
+      console.error(e);
+      setActionToast("Saved locally; backend sync unavailable.");
+    }
+    setTimeout(() => setActionToast(null), 3500);
   }
 
   async function handleActionLog(type: string, ctx: string) {
     try {
-      await logBehavior({ type, value: 1.0, context: ctx });
-      // Minor UI confirmation could go here
-    } catch(e) { console.error(e); }
+      const res = await logBehavior({ type, value: 1.0, context: ctx });
+      if (res.ok) {
+        setActionToast(`Recorded behavior event: ${type.replace(/_/g, " ")}`);
+      } else {
+        setActionToast(`Failed to record event (${res.status})`);
+      }
+    } catch (e) {
+      console.error(e);
+      setActionToast("Behavior event queued offline.");
+    }
+    setTimeout(() => setActionToast(null), 3500);
   }
 
   async function handleAnalyze() {
@@ -158,12 +175,23 @@ export default function Dashboard() {
   }
 
   const renderHighlightedText = () => {
-    const regex = /\b(always|never|everyone|no one)\b/gi;
+    const regex = /\b(always|never|everyone|no one|nothing|worthless|ruined|failure|disaster|terrible|hopeless|nobody|everything)\b/gi;
     const parts: (string | React.ReactNode)[] = journalText.split(regex);
     for (let i = 1; i < parts.length; i += 2) {
-      parts[i] = <span key={i} className="underline decoration-red-500/70 underline-offset-4 bg-red-500/10 rounded px-1">{parts[i]}</span>;
+      parts[i] = (
+        <span
+          key={i}
+          className="underline decoration-red-400 underline-offset-4 bg-red-500/20 text-red-200 rounded px-0.5"
+        >
+          {parts[i]}
+        </span>
+      );
     }
-    return <div className="p-4 whitespace-pre-wrap font-sans text-transparent">{parts.map((p, i) => p)}</div>;
+    return (
+      <div className="p-4 whitespace-pre-wrap break-words font-sans text-sm leading-relaxed text-gray-200">
+        {parts.map((p, i) => p)}
+      </div>
+    );
   };
 
   const messages: Record<string, string> = {
@@ -316,7 +344,7 @@ export default function Dashboard() {
               <h3 className="text-xs text-gray-500 mb-4 uppercase tracking-widest font-bold">Thought Journal</h3>
               <div className="relative flex-grow">
                 {/* The overlay for rendering custom highlights */}
-                <div className="absolute inset-0 pointer-events-none z-10 break-words text-gray-300 text-sm h-32 overflow-hidden">
+                <div className="absolute inset-0 pointer-events-none z-10 break-words text-sm leading-relaxed h-32 overflow-hidden">
                   {renderHighlightedText()}
                 </div>
                 {/* Ghost Text Overlay */}
@@ -331,7 +359,8 @@ export default function Dashboard() {
                   value={journalText} 
                   onChange={(e) => setJournalText(e.target.value)} 
                   placeholder="What's on your mind? (Try typing: 'I always fail' to see detection)"
-                  className="w-full h-32 p-4 bg-gray-900/50 border border-gray-700/50 rounded-xl resize-none text-transparent caret-white focus:outline-none focus:border-purple-500/50 transition relative z-20 text-sm font-sans"
+                  aria-label="Thought Journal"
+                  className="w-full h-32 p-4 bg-gray-900/50 border border-gray-700/50 rounded-xl resize-none text-transparent caret-white focus:outline-none focus:border-purple-500/50 transition relative z-20 text-sm leading-relaxed font-sans"
                 />
               </div>
               <button 
@@ -390,7 +419,7 @@ export default function Dashboard() {
       </div>
 
       {/* Right Sidebar: Insight Panel */}
-      <div className="w-80 bg-[#111827] border-l border-gray-800 p-6 flex flex-col pt-12 overflow-y-auto hidden xl:flex">
+      <div className="w-full xl:w-80 bg-[#111827] border-t xl:border-t-0 xl:border-l border-gray-800 p-6 flex flex-col pt-12 overflow-y-auto">
         <h2 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-6">Cognitive Mirror</h2>
         
         {telemetry && (
@@ -494,64 +523,14 @@ export default function Dashboard() {
 
       {/* Deep Neural Forecast Panel */}
       {deepForecast && (
-        <div className="mt-8 bg-gradient-to-tr from-[#111827] to-[#1a1030] border border-purple-800/30 rounded-3xl p-6 shadow-2xl">
-          <h2 className="text-sm font-bold text-purple-400 uppercase tracking-widest mb-5 flex items-center space-x-2">
-            <ShieldAlert size={16} className="text-purple-400" />
-            <span>Deep Neural Forecast — Burnout Hazard Projection</span>
-          </h2>
-          <div className="grid md:grid-cols-3 gap-5">
-            <div className="bg-[#0d1120] border border-gray-800 rounded-2xl p-5 flex flex-col items-center">
-              <div className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Burnout Hazard</div>
-              <div className={`text-5xl font-semibold mb-2 ${
-                deepForecast.burnout_hazard_rate > 0.7 ? "text-red-400" :
-                deepForecast.burnout_hazard_rate > 0.4 ? "text-amber-400" : "text-green-400"
-              }`}>
-                {(deepForecast.burnout_hazard_rate * 100).toFixed(0)}%
-              </div>
-              <div className={`text-xs px-3 py-1 rounded-full font-mono ${
-                deepForecast.burnout_hazard_level === "High" ? "bg-red-900/40 text-red-300" :
-                deepForecast.burnout_hazard_level === "Moderate" ? "bg-amber-900/40 text-amber-300" :
-                "bg-green-900/40 text-green-300"
-              }`}>
-                {deepForecast.burnout_hazard_level}
-              </div>
-            </div>
-            <div className="bg-[#0d1120] border border-gray-800 rounded-2xl p-5">
-              <div className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Predicted State</div>
-              <div className="text-xl font-semibold text-purple-300 capitalize mb-3">{deepForecast.dominant_forecast}</div>
-              {deepForecast.state_distribution && (
-                <div className="space-y-2">
-                  {Object.entries(deepForecast.state_distribution)
-                    .sort(([,a]: any, [,b]: any) => b - a)
-                    .slice(0, 3)
-                    .map(([state, prob]: any) => (
-                      <div key={state} className="flex items-center space-x-2">
-                        <div className="text-xs text-gray-500 w-16 capitalize truncate">{state}</div>
-                        <div className="flex-1 bg-gray-800 rounded-full h-1.5">
-                          <div className="bg-purple-500 h-1.5 rounded-full" style={{ width: `${(prob * 100).toFixed(0)}%` }} />
-                        </div>
-                        <div className="text-xs text-gray-400 w-8 text-right">{(prob * 100).toFixed(0)}%</div>
-                      </div>
-                    ))
-                  }
-                </div>
-              )}
-            </div>
-            <div className="bg-[#0d1120] border border-gray-800 rounded-2xl p-5">
-              <div className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Multi-Horizon</div>
-              {deepForecast.multi_horizon_projections?.map((proj: any, i: number) => (
-                <div key={i} className="flex items-center justify-between py-2 border-b border-gray-800/50 last:border-0">
-                  <span className="text-xs text-gray-500 font-mono">T+{i + 1}</span>
-                  <span className="text-sm text-gray-200 capitalize">{proj.dominant_state}</span>
-                  <span className={`text-xs px-2 py-0.5 rounded font-mono ${
-                    proj.burnout_hazard > 0.6 ? "bg-red-900/30 text-red-400" :
-                    proj.burnout_hazard > 0.35 ? "bg-amber-900/30 text-amber-400" :
-                    "bg-green-900/30 text-green-400"
-                  }`}>{(proj.burnout_hazard * 100).toFixed(0)}%</span>
-                </div>
-              ))}
-            </div>
-          </div>
+        <div className="mt-8">
+          <DeepForecastCard deepForecast={deepForecast} />
+        </div>
+      )}
+
+      {actionToast && (
+        <div role="status" aria-live="polite" className="fixed bottom-6 left-6 z-40 bg-[#111827] border border-purple-500/40 text-purple-200 text-xs font-mono px-4 py-2.5 rounded-xl shadow-xl">
+          {actionToast}
         </div>
       )}
 

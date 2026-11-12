@@ -2,8 +2,10 @@ export const API_BASE = (typeof process !== "undefined" && process.env.NEXT_PUBL
 
 function getHeaders() {
   const token = typeof window !== 'undefined' ? localStorage.getItem("token") : null;
+  const tzOffset = typeof window !== 'undefined' ? String(new Date().getTimezoneOffset()) : "0";
   return {
     "Content-Type": "application/json",
+    "X-Timezone-Offset": tzOffset,
     ...(token ? { Authorization: `Bearer ${token}` } : {})
   };
 }
@@ -266,4 +268,69 @@ export async function purgeMemoryEpisode(episodeId: number) {
 
 export function getDeliberationStreamUrl(scenario: string): string {
   return `${API_BASE}/agent/stream?scenario=${encodeURIComponent(scenario)}`;
+}
+
+export interface StreamDeliberationFrame {
+  node?: string;
+  phase?: string;
+  progress?: number;
+  message?: string;
+  final?: boolean;
+  payload?: Record<string, unknown>;
+}
+
+export async function streamDeliberation(
+  scenario: string,
+  onFrame: (frame: StreamDeliberationFrame) => void,
+  signal?: AbortSignal
+): Promise<void> {
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+  const res = await fetch(getDeliberationStreamUrl(scenario), {
+    method: "GET",
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    signal,
+  });
+
+  if (!res.ok) {
+    throw new Error(`Stream HTTP ${res.status}`);
+  }
+  if (!res.body) {
+    throw new Error("Streaming response body unavailable");
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const chunks = buffer.split(/\n\n+/);
+    buffer = chunks.pop() || "";
+    for (const chunk of chunks) {
+      const cleaned = chunk.replace(/^data:\s*/gm, "").trim();
+      if (!cleaned) continue;
+      try {
+        const frame = JSON.parse(cleaned) as StreamDeliberationFrame;
+        onFrame(frame);
+      } catch {
+        // Ignore partial or non-JSON keepalive frames
+      }
+    }
+  }
+
+  if (buffer.trim()) {
+    const cleaned = buffer.replace(/^data:\s*/gm, "").trim();
+    if (cleaned) {
+      try {
+        const frame = JSON.parse(cleaned) as StreamDeliberationFrame;
+        onFrame(frame);
+      } catch {
+        // Ignore trailing keepalive
+      }
+    }
+  }
 }

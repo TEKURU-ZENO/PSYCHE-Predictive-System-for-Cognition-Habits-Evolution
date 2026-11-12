@@ -83,7 +83,12 @@ export default function CrisisSupportModal({ isOpen, onClose, crisisData }: Cris
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in font-sans">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="crisis-modal-title"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in font-sans"
+    >
       <div className="relative w-full max-w-2xl bg-[#0f1422] border-2 border-red-500/80 rounded-3xl p-6 md:p-8 shadow-2xl shadow-red-950/60 text-white max-h-[90vh] overflow-y-auto">
         
         {/* Header */}
@@ -98,7 +103,7 @@ export default function CrisisSupportModal({ isOpen, onClose, crisisData }: Cris
                   CRISIS PROTOCOL ACTIVE
                 </span>
               </div>
-              <h2 className="text-2xl font-bold text-white tracking-tight mt-1">
+              <h2 id="crisis-modal-title" className="text-2xl font-bold text-white tracking-tight mt-1">
                 Immediate Human Support & Safety Resources
               </h2>
             </div>
@@ -106,7 +111,8 @@ export default function CrisisSupportModal({ isOpen, onClose, crisisData }: Cris
           {onClose && (
             <button
               onClick={onClose}
-              className="p-2 text-gray-400 hover:text-white bg-gray-800/60 rounded-xl transition hover:bg-gray-700/60"
+              aria-label="Close crisis resources modal"
+              className="p-2 text-gray-300 hover:text-white bg-gray-800/80 rounded-xl transition hover:bg-gray-700/80"
               title="Close"
             >
               <X className="w-5 h-5" />

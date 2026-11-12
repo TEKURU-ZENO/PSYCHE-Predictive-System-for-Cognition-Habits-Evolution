@@ -89,12 +89,31 @@ def extract_keywords(text: str) -> List[str]:
     tokens = re.findall(r'\b[a-zA-Z]{3,}\b', text.lower())
     return [t for t in tokens if t not in STOPWORDS]
 
+AFFECTIVE_CLUSTERS = {
+    "exhaustion": {"burnout", "exhausted", "exhaustion", "drained", "depleted", "fatigued", "fatigue", "tired"},
+    "insomnia": {"insomnia", "sleepless", "sleep", "awake", "nightmare", "restless"},
+    "overload": {"meetings", "meeting", "deadline", "deadlines", "overwhelmed", "workload", "context", "switching", "overtime"},
+    "anxiety": {"anxious", "anxiety", "panic", "panicked", "dread", "worried", "worry", "spiraling", "nervous"},
+    "low_mood": {"hopeless", "depressed", "sad", "empty", "worthless", "lonely", "isolated"},
+}
+
+
+def _expand_semantic_clusters(tokens: set) -> set:
+    expanded = set(tokens)
+    for cluster_name, members in AFFECTIVE_CLUSTERS.items():
+        if expanded.intersection(members):
+            expanded.add(f"_cluster_{cluster_name}")
+    return expanded
+
+
 def compute_similarity(query_tokens: set, episode_tokens: set, q_valence: float, e_valence: float) -> float:
     if not query_tokens or not episode_tokens:
         jaccard = 0.0
     else:
-        intersection = len(query_tokens.intersection(episode_tokens))
-        union = len(query_tokens.union(episode_tokens))
+        q_exp = _expand_semantic_clusters(query_tokens)
+        e_exp = _expand_semantic_clusters(episode_tokens)
+        intersection = len(q_exp.intersection(e_exp))
+        union = len(q_exp.union(e_exp))
         jaccard = intersection / max(union, 1)
 
     valence_proximity = max(0.0, 1.0 - abs(q_valence - e_valence))

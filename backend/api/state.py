@@ -22,5 +22,7 @@ def get_state(db: Session = Depends(get_db), user: User = Depends(get_current_us
             "E": 0.4,
             "A": 0.5,
             "N": 0.5
-        }
+        },
+        "traits_calibrated": False,
+        "source": "baseline_prior"
     }

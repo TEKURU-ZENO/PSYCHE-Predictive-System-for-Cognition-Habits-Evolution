@@ -1,4 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header
+from typing import Optional
+
+def _parse_tz_offset(x_timezone_offset: Optional[str]) -> Optional[int]:
+    if x_timezone_offset is None:
+        return None
+    try:
+        return int(x_timezone_offset.strip())
+    except (ValueError, TypeError):
+        return None, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
@@ -19,12 +28,20 @@ class CounterfactualInput(BaseModel):
     decision_hash: Optional[str] = None
 
 @router.get("/status")
-def get_ambient_status(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    return ProactiveMonitor.run_ambient_scan(db, user.id)
+def get_ambient_status(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    x_timezone_offset: Optional[str] = Header(default=None),
+):
+    return ProactiveMonitor.run_ambient_scan(db, user.id, tz_offset_minutes=_parse_tz_offset(x_timezone_offset))
 
 @router.post("/scan")
-def trigger_ambient_scan(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    return ProactiveMonitor.run_ambient_scan(db, user.id)
+def trigger_ambient_scan(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    x_timezone_offset: Optional[str] = Header(default=None),
+):
+    return ProactiveMonitor.run_ambient_scan(db, user.id, tz_offset_minutes=_parse_tz_offset(x_timezone_offset))
 
 @router.post("/acknowledge/{alert_id}")
 def acknowledge_alert(alert_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):

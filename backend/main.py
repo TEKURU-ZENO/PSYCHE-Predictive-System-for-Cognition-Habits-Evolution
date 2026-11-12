@@ -1,5 +1,9 @@
-from fastapi import FastAPI
+from collections import defaultdict, deque
+import time
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from core.config import settings
 from db.postgres import Base, engine
 from api.auth import router as auth_router
 from api.mood import router as mood_router
@@ -31,19 +35,54 @@ from models.memory import EpisodicMemory, AssociativeLink, SchemaConsolidation
 from models.proactive import ProactiveAlert, CounterfactualBranch
 from models.post_mortem import PostMortemReport, RedTeamAuditLog
 
-app = FastAPI()
+app = FastAPI(title="Psych-AI Cognitive Twin Platform", version="2.0.0")
 
-# Make sure tables are created (gracefully handled if DB container is spinning up)
-try:
-    Base.metadata.create_all(bind=engine)
-    print("PostgreSQL tables verified and synced.")
-except Exception as e:
-    print(f"Warning: Database connection deferred during initialization ({e}). Retrying on first request.")
+# Only auto-create schema in non-production environments; production uses Alembic migrations
+if settings.ENVIRONMENT != "production":
+    try:
+        Base.metadata.create_all(bind=engine)
+        print("PostgreSQL tables verified and synced.")
+    except Exception as e:
+        print(f"Warning: Database connection deferred during initialization ({e}). Retrying on first request.")
+
+# Sliding-window in-process rate limiter (with health probe exemptions)
+_RATE_BUCKETS: dict[str, deque] = defaultdict(deque)
+_EXEMPT_PATHS = {"/", "/health", "/api/v1/metrics/healthz"}
+
+
+@app.middleware("http")
+async def rate_limit_middleware(request: Request, call_next):
+    if request.url.path in _EXEMPT_PATHS:
+        return await call_next(request)
+
+    client_ip = request.client.host if request.client else "unknown"
+    now = time.monotonic()
+    window = 60.0
+    limit = max(10, settings.RATE_LIMIT_PER_MINUTE)
+    bucket = _RATE_BUCKETS[client_ip]
+
+    while bucket and (now - bucket[0]) > window:
+        bucket.popleft()
+
+    if len(bucket) >= limit:
+        return JSONResponse(
+            status_code=429,
+            content={"detail": "Rate limit exceeded. Please wait before sending additional requests."},
+            headers={"Retry-After": "60"}
+        )
+
+    bucket.append(now)
+    response = await call_next(request)
+    response.headers["X-RateLimit-Limit"] = str(limit)
+    response.headers["X-RateLimit-Remaining"] = str(max(0, limit - len(bucket)))
+    return response
+
 
 app.include_router(auth_router)
 app.include_router(mood_router)
 app.include_router(state_router)
 app.include_router(behavior_router)
+from api.cognition import router as _cognition_router  # noqa: E402
 app.include_router(cognition_router)
 app.include_router(prediction_router)
 app.include_router(intervention_router)
@@ -59,28 +98,22 @@ app.include_router(replay_router)
 app.include_router(vault_router)
 app.include_router(metrics_router)
 
+allowed_origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Timezone-Offset"],
 )
+
 
 @app.get("/")
 def root():
     return {"msg": "Psych-AI running"}
 
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
-
-@app.get("/metrics")
-def root_metrics():
-    from api.metrics import prometheus_metrics
-    from db.postgres import SessionLocal
-    db = SessionLocal()
-    try:
-        return prometheus_metrics(db)
-    finally:
-        db.close()

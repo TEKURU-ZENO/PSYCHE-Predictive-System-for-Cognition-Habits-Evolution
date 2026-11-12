@@ -6,13 +6,13 @@ hazard-rate burnout projections.
 
 Distinction from Classical Forecasting:
 - Classical (Holt-Markov): Linear trend extrapolation + 1st-order discrete Markov matrix.
-- Deep (Neural Sequence): Continuous 16-D latent state embeddings, non-linear gated temporal
+- Deep (Neural Sequence): Continuous 8-D latent state embeddings, non-linear gated temporal
   memory (handling long-range stress accumulation), temporal self-attention, and non-linear hazard modeling.
 """
 
 import math
 from typing import List, Dict, Any, Optional, Tuple
-from datetime import datetime
+from datetime import datetime, timezone
 
 EMOTIONS = ["calm", "focused", "motivated", "neutral", "fatigued", "stressed", "anxious"]
 LATENT_DIM = 8
@@ -155,7 +155,7 @@ class DeepForecastingEngine:
         delta = intensity - prev_intensity
 
         # Diurnal phase
-        created_at = getattr(m, "timestamp", None) or datetime.utcnow()
+        created_at = getattr(m, "timestamp", None) or datetime.now(timezone.utc)
         hour = getattr(created_at, "hour", 12)
         circadian = math.sin(2.0 * math.pi * (hour / 24.0))
 
@@ -206,6 +206,12 @@ class DeepForecastingEngine:
         # Computed via dot product of state distribution with calibrated clinical hazard weights
         raw_hazard = sum(p * w for p, w in zip(state_distribution, self.W_hazard))
         burnout_hazard_rate = round(_sigmoid(raw_hazard * 1.5), 3)
+        # Heuristic epistemic confidence interval widening on short sequences
+        seq_uncertainty = round(min(0.28, 0.08 + 0.35 / math.sqrt(max(1, len(moods)))), 3)
+        burnout_hazard_ci = [
+            round(max(0.0, burnout_hazard_rate - seq_uncertainty), 3),
+            round(min(1.0, burnout_hazard_rate + seq_uncertainty), 3),
+        ]
 
         # 5. Multistep Latent Projection
         projections = []
@@ -224,10 +230,16 @@ class DeepForecastingEngine:
             step_logits = _vec_add(_mat_vec_mul(self.W_out, proj_h), self.b_out)
             step_probs = _softmax(step_logits)
             step_dom = EMOTIONS[step_probs.index(max(step_probs))]
+            step_hazard = round(
+                _sigmoid(sum(p * w for p, w in zip(step_probs, self.W_hazard)) * 1.5),
+                3,
+            )
             projections.append({
                 "step": step,
                 "projected_state": step_dom,
-                "confidence": round(max(step_probs), 2)
+                "dominant_state": step_dom,
+                "confidence": round(max(step_probs), 2),
+                "burnout_hazard": step_hazard,
             })
 
         return {
@@ -237,6 +249,7 @@ class DeepForecastingEngine:
             "dominant_forecast": dominant_predicted_emotion,
             "state_distribution": distribution_dict,
             "burnout_hazard_rate": burnout_hazard_rate,
+            "burnout_hazard_ci": burnout_hazard_ci,
             "burnout_hazard_level": "Critical" if burnout_hazard_rate > 0.65 else ("Elevated" if burnout_hazard_rate > 0.45 else "Nominal"),
             "temporal_attention_weights": [round(w, 3) for w in attn_weights[-5:]],
             "multi_horizon_projections": projections,

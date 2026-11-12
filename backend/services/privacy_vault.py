@@ -1,21 +1,27 @@
 from typing import Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from models.user_state import UserState
 from models.mood import MoodLog
 from models.behavior import BehaviorLog
 from models.pattern import Trigger
+from models.personalization import UserPolicy, PendingReward
+from models.evolution import EvolutionSnapshot
+from models.goals import Goal
+from models.system_state import SystemState
+from models.agent_metrics import AgentMetrics
 from models.memory import EpisodicMemory, AssociativeLink, SchemaConsolidation
 from models.post_mortem import PostMortemReport, RedTeamAuditLog
 from models.proactive import ProactiveAlert, CounterfactualBranch
 from models.event import EventLog
 
+
 class PrivacyVaultService:
     @staticmethod
-    def export_full_vault(db: Session, user_id: int) -> Dict[str, Any]:
+    def export_full_vault(db: Session, user_id: Any) -> Dict[str, Any]:
         """Exports the complete autobiographical and psychological twin data bundle."""
         uid_str = str(user_id)
-        
+
         user_state = db.query(UserState).filter_by(user_id=uid_str).first()
         moods = db.query(MoodLog).filter_by(user_id=uid_str).order_by(MoodLog.timestamp.desc()).limit(100).all()
         behaviors = db.query(BehaviorLog).filter_by(user_id=uid_str).order_by(BehaviorLog.timestamp.desc()).limit(100).all()
@@ -29,7 +35,7 @@ class PrivacyVaultService:
         return {
             "vault_metadata": {
                 "user_id": uid_str,
-                "exported_at": datetime.utcnow().isoformat(),
+                "exported_at": datetime.now(timezone.utc).isoformat(),
                 "platform": "Psych-AI Cognitive Twin Platform",
                 "format_version": "2.0.0"
             },
@@ -83,15 +89,48 @@ class PrivacyVaultService:
             ],
             "recent_mood_history": [
                 {"mood": m.mood_type, "intensity": m.intensity, "timestamp": m.timestamp.isoformat()} for m in moods
-            ]
+            ],
+            "recent_behavior_count": len(behaviors),
+            "active_alerts_count": len(alerts),
         }
 
     @staticmethod
-    def prune_episode(db: Session, user_id: int, episode_id: int) -> bool:
+    def prune_episode(db: Session, user_id: Any, episode_id: int) -> bool:
         """Right to be forgotten: selectively prunes an episodic memory."""
-        ep = db.query(EpisodicMemory).filter_by(id=episode_id, user_id=user_id).first()
+        ep = db.query(EpisodicMemory).filter_by(id=episode_id, user_id=str(user_id)).first()
         if ep:
             db.delete(ep)
             db.commit()
             return True
         return False
+
+    @staticmethod
+    def erase_all_user_data(db: Session, user_id: Any) -> Dict[str, int]:
+        """Full GDPR Article 17 erasure across all tenant-scoped psychological tables."""
+        uid_str = str(user_id)
+        models_to_purge = [
+            MoodLog,
+            BehaviorLog,
+            EventLog,
+            Trigger,
+            UserPolicy,
+            PendingReward,
+            EvolutionSnapshot,
+            Goal,
+            SystemState,
+            AgentMetrics,
+            EpisodicMemory,
+            AssociativeLink,
+            SchemaConsolidation,
+            PostMortemReport,
+            RedTeamAuditLog,
+            ProactiveAlert,
+            CounterfactualBranch,
+            UserState,
+        ]
+        counts: Dict[str, int] = {}
+        for model in models_to_purge:
+            deleted = db.query(model).filter_by(user_id=uid_str).delete()
+            counts[model.__tablename__] = int(deleted or 0)
+        db.commit()
+        return counts

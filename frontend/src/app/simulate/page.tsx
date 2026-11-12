@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { simulateAgentPipeline, trackAgentOutcome } from "@/lib/api";
+import { simulateAgentPipeline, trackAgentOutcome, streamDeliberation } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import SystemAwarenessPanel from "@/components/SystemAwarenessPanel";
 import AgentTrustTable from "@/components/AgentTrustTable";
@@ -51,14 +51,52 @@ export default function SimulatePage() {
     setErrorMessage(null);
     setIsOfflinePreview(false);
 
-    // Progressive real-time deliberation animation sequence
-    const t1 = setTimeout(() => setStreamStep(2), 350);
-    const t2 = setTimeout(() => setStreamStep(3), 700);
-    const t3 = setTimeout(() => setStreamStep(4), 1050);
-    const t4 = setTimeout(() => setStreamStep(5), 1400);
+    // Real authenticated streaming deliberation via ReadableStream
+    const controller = new AbortController();
+    const timers: ReturnType<typeof setTimeout>[] = [];
 
     try {
+      let receivedStreamResult = false;
+      try {
+        await streamDeliberation(
+          scenario,
+          (frame) => {
+            if (typeof frame.progress === "number") {
+              setStreamStep(Math.min(6, Math.max(1, Math.ceil((frame.progress / 100) * 6))));
+            }
+            if (frame.final && frame.payload) {
+              receivedStreamResult = true;
+              const data = frame.payload as any;
+              if (data.is_crisis || data.synthesized_payload?.is_crisis) {
+                setCrisisData(data.crisis_response || {
+                  helplines: data.synthesized_payload?.helplines,
+                  message: data.synthesized_payload?.reasoning
+                });
+                setCrisisOpen(true);
+              }
+              setStreamStep(6);
+              setOutput(data);
+              setIsStreaming(false);
+              setLoading(false);
+            }
+          },
+          controller.signal
+        );
+      } catch (streamErr) {
+        // Fallback to standard POST simulation pipeline if stream endpoint is unavailable
+        console.warn("Stream fallback to synchronous simulation:", streamErr);
+      }
+
+      if (receivedStreamResult) {
+        return;
+      }
+
+      timers.push(setTimeout(() => setStreamStep(2), 250));
+      timers.push(setTimeout(() => setStreamStep(3), 500));
+      timers.push(setTimeout(() => setStreamStep(4), 750));
+
       const res = await simulateAgentPipeline(scenario);
+      timers.forEach(clearTimeout);
       if (res.ok) {
         const data = await res.json();
         setIsOfflinePreview(false);
@@ -71,15 +109,14 @@ export default function SimulatePage() {
           setCrisisOpen(true);
         }
         setStreamStep(6);
-        setTimeout(() => {
-          setOutput(data);
-          setIsStreaming(false);
-          setLoading(false);
-        }, 400);
+        setOutput(data);
+        setIsStreaming(false);
+        setLoading(false);
       } else {
         throw new Error("API call returned " + res.status);
       }
     } catch (e: any) {
+      timers.forEach(clearTimeout);
       console.warn("Backend unavailable, using simulated cognitive twin response:", e);
       const isCrisisText = /\b(kill\s*myself|end\s*my\s*life|want\s+to\s+die|commit\s+suicide|cut\s*myself|self[\s\-]*harm)\b/i.test(scenario);
       if (isCrisisText) {
@@ -89,8 +126,7 @@ export default function SimulatePage() {
       setIsOfflinePreview(true);
       setErrorMessage("Live backend unavailable (" + (e?.message || "connection error") + "). Displaying offline cognitive simulation preview.");
       setStreamStep(6);
-      setTimeout(() => {
-        setOutput({
+      setOutput({
           synthesized_payload: {
             final_decision: "Strategic Chunking & 15m Cognitive Refractory Window",
             reasoning: "PredictionAgent forecasts elevated acute stress velocity under consecutive pressure. StrategyAgent historical precedent demonstrates 68% recovery using segmented task breakdown.",
@@ -134,10 +170,9 @@ export default function SimulatePage() {
             veto_triggered: false,
             vulnerabilities: []
           }
-        });
-        setIsStreaming(false);
-        setLoading(false);
-      }, 400);
+      });
+      setIsStreaming(false);
+      setLoading(false);
     }
   };
 

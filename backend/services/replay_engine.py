@@ -6,16 +6,18 @@ from models.post_mortem import RedTeamAuditLog
 from models.proactive import CounterfactualBranch
 from core.versioning import SystemVersionController
 
+
 class ForensicReplayEngine:
     @staticmethod
-    def verify_and_replay_decision(db: Session, user_id: int, decision_hash: str) -> Optional[Dict[str, Any]]:
+    def verify_and_replay_decision(db: Session, user_id: Any, decision_hash: str) -> Optional[Dict[str, Any]]:
         """
         Reconstructs the exact state of all agents, weights, arguments,
         version matrix, and red-team audits from a given decision_hash,
         cryptographically verifying SHA-256 integrity.
         """
+        uid_str = str(user_id)
         logs = db.query(EventLog).filter(
-            EventLog.user_id == str(user_id),
+            EventLog.user_id == uid_str,
             EventLog.type == "DECISION_MEMORY"
         ).order_by(EventLog.timestamp.desc()).all()
 
@@ -35,7 +37,7 @@ class ForensicReplayEngine:
         if not target_log:
             return None
 
-        # Verify cryptographic tamper-resistance: recompute SHA-256 hash
+        # Verify cryptographic tamper-resistance strictly against stored fields
         reconstructed_payload = {
             "scenario": target_meta.get("scenario", ""),
             "decision": target_meta.get("decision", ""),
@@ -49,13 +51,12 @@ class ForensicReplayEngine:
             "outcome": target_meta.get("outcome", "pending")
         }
 
-        # Check hash match
         recomputed_hash = SystemVersionController.generate_decision_hash(reconstructed_payload)
-        is_tamper_free = (recomputed_hash == decision_hash) or (target_meta.get("decision_hash") == decision_hash)
+        is_tamper_free = (recomputed_hash == decision_hash)
 
-        # Retrieve any attached Red Team audit log for this hash
+        # Retrieve any attached Red Team audit log for this hash using tenant-normalized str ID
         red_team_log = db.query(RedTeamAuditLog).filter_by(
-            user_id=user_id,
+            user_id=uid_str,
             decision_hash=decision_hash
         ).first()
 
@@ -76,7 +77,7 @@ class ForensicReplayEngine:
 
         # Retrieve any counterfactual branches attached to this hash
         cf_branches = db.query(CounterfactualBranch).filter_by(
-            user_id=user_id,
+            user_id=uid_str,
             decision_hash=decision_hash
         ).all()
 
@@ -110,7 +111,7 @@ class ForensicReplayEngine:
         }
 
     @staticmethod
-    def get_timeline(db: Session, user_id: int, limit: int = 15) -> List[Dict[str, Any]]:
+    def get_timeline(db: Session, user_id: Any, limit: int = 15) -> List[Dict[str, Any]]:
         """Returns recent historical hashed decisions for the replay timeline."""
         logs = db.query(EventLog).filter(
             EventLog.user_id == str(user_id),

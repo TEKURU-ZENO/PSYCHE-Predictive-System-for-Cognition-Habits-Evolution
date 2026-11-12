@@ -1,16 +1,18 @@
 import asyncio
 
+
 async def run_blocking(fn, *args):
     return await asyncio.to_thread(fn, *args)
 
+
 class BaseAgent:
     name = "base"
-    timeout = 1.5  # seconds
+    timeout = 10.0  # seconds (accommodates 8s live LLM budget cleanly)
 
     async def run(self, context: dict) -> dict:
         try:
             result = await asyncio.wait_for(self._run(context), timeout=self.timeout)
-            
+
             # 1.1 Agent Confidence Normalization
             result["confidence"] = min(1.0, max(0.0, result.get("confidence", 0.0)))
             return result
@@ -24,7 +26,7 @@ class BaseAgent:
 
     def fallback(self, reason, timeout_penalty=False):
         # 1.4 Timeout Weight Penalization
-        conf = 0.5 if timeout_penalty else 0.0 
+        conf = 0.5 if timeout_penalty else 0.0
         return {
             "output": None,
             "confidence": conf,

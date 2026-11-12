@@ -6,6 +6,7 @@ from agents.strategy import StrategyAgent
 from agents.meta import MetaAgent
 from services.crisis_service import CrisisService
 
+
 class Orchestrator:
     def __init__(self):
         self.perception_agent = PerceptionAgent()
@@ -29,17 +30,18 @@ class Orchestrator:
             }
 
         # 1. Perception Layer (Sequential)
-        context = {"input": input_data, "db": input_data.get("db")}
+        # Do NOT share a single SQLAlchemy Session across concurrent thread-pool agents
+        context = {"input": input_data}
         perception_res = await self.perception_agent.run(context)
         context["state"] = perception_res.get("output", {})
-        
-        # Base input state mapped into explicit DB-reliant parallel workflows
+
+        # Each parallel agent opens/closes its own thread-local DB session inside run_blocking
         tasks = [agent.run(context) for agent in self.parallel_agents]
 
         # 2. Asynchronous Execution
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        output = { "state": context["state"] }
+        output = {"state": context["state"]}
         for agent, res in zip(self.parallel_agents, results):
             if isinstance(res, Exception):
                 output[agent.name] = agent.fallback(str(res) or "exception")
@@ -47,5 +49,6 @@ class Orchestrator:
                 output[agent.name] = res
 
         return output
+
 
 orchestrator = Orchestrator()

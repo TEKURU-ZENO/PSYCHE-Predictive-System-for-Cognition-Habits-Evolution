@@ -36,9 +36,19 @@ CIRCADIAN_DESCRIPTIONS = {
 
 class ProactiveMonitor:
     @staticmethod
-    def get_circadian_phase(hour: int = None) -> str:
+    def _local_now(tz_offset_minutes: int = None) -> datetime:
+        from datetime import timedelta, timezone
+        utc_now = datetime.now(timezone.utc)
+        if tz_offset_minutes is not None:
+            # JS Date.getTimezoneOffset() returns (UTC - local) in minutes
+            clamped = max(-840, min(840, int(tz_offset_minutes)))
+            return utc_now - timedelta(minutes=clamped)
+        return utc_now
+
+    @staticmethod
+    def get_circadian_phase(hour: int = None, tz_offset_minutes: int = None) -> str:
         if hour is None:
-            hour = datetime.utcnow().hour  # Note: Can be localized
+            hour = ProactiveMonitor._local_now(tz_offset_minutes).hour
         
         if 6 <= hour < 11:
             return "morning_focus"
@@ -52,10 +62,27 @@ class ProactiveMonitor:
             return "late_night_vulnerability"
 
     @staticmethod
-    def run_ambient_scan(db: Session, user_id: Any) -> Dict[str, Any]:
-        now = datetime.utcnow()
+    def _alert_exists_recently(db: Session, uid_str: str, alert_type: str, hours: int = 4) -> bool:
+        from datetime import timedelta, timezone
+        cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=hours)
+        existing = (
+            db.query(ProactiveAlert)
+            .filter(
+                ProactiveAlert.user_id == uid_str,
+                ProactiveAlert.alert_type == alert_type,
+                ProactiveAlert.is_acknowledged == False,
+                ProactiveAlert.created_at >= cutoff,
+            )
+            .first()
+        )
+        return existing is not None
+
+    @staticmethod
+    def run_ambient_scan(db: Session, user_id: Any, tz_offset_minutes: int = None) -> Dict[str, Any]:
+        local_now = ProactiveMonitor._local_now(tz_offset_minutes)
+        now = local_now.replace(tzinfo=None)
         uid_str = str(user_id)
-        phase = ProactiveMonitor.get_circadian_phase(now.hour)
+        phase = ProactiveMonitor.get_circadian_phase(local_now.hour, tz_offset_minutes)
         circadian_info = CIRCADIAN_DESCRIPTIONS.get(phase, CIRCADIAN_DESCRIPTIONS["morning_focus"])
 
         # 1. Fetch recent moods (last 6 entries) to measure velocity
@@ -68,7 +95,7 @@ class ProactiveMonitor:
             recent_stress_count = sum(1 for m in recent_moods[:3] if m.mood_type in ["stressed", "fatigued"])
             if recent_stress_count >= 2:
                 intensity_trend = recent_moods[0].intensity - recent_moods[2].intensity
-                if intensity_trend > 0.15 or recent_moods[0].intensity > 0.75:
+                if (intensity_trend > 0.15 or recent_moods[0].intensity > 0.75) and not ProactiveMonitor._alert_exists_recently(db, uid_str, "burnout_velocity"):
                     alert = ProactiveAlert(
                         user_id=uid_str,
                         alert_type="burnout_velocity",
@@ -84,7 +111,7 @@ class ProactiveMonitor:
                     alerts_generated.append(alert)
 
         # 3. Circadian Vulnerability Warning (Late Night)
-        if phase == "late_night_vulnerability":
+        if phase == "late_night_vulnerability" and not ProactiveMonitor._alert_exists_recently(db, uid_str, "circadian_friction"):
             alert = ProactiveAlert(
                 user_id=uid_str,
                 alert_type="circadian_friction",
@@ -103,7 +130,7 @@ class ProactiveMonitor:
         triggers = db.query(Trigger).filter_by(user_id=uid_str).all()
         if triggers and phase in ["afternoon_dip", "late_night_vulnerability"]:
             top_trigger = max(triggers, key=lambda t: t.frequency) if triggers else None
-            if top_trigger and top_trigger.confidence > 0.6:
+            if top_trigger and top_trigger.confidence > 0.6 and not ProactiveMonitor._alert_exists_recently(db, uid_str, "preemptive_nudge"):
                 alert = ProactiveAlert(
                     user_id=uid_str,
                     alert_type="preemptive_nudge",

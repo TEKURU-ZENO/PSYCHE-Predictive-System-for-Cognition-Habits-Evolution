@@ -1,7 +1,7 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { exportPrivacyVault } from "@/lib/api";
-import { ShieldCheck, Download, Lock, FileCode, CheckCircle2, X } from "lucide-react";
+import { ShieldCheck, Download, Lock, CheckCircle2, X } from "lucide-react";
 
 interface PrivacyVaultModalProps {
   isOpen: boolean;
@@ -11,6 +11,15 @@ interface PrivacyVaultModalProps {
 export default function PrivacyVaultModal({ isOpen, onClose }: PrivacyVaultModalProps) {
   const [downloading, setDownloading] = useState(false);
   const [downloaded, setDownloaded] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -39,7 +48,12 @@ export default function PrivacyVaultModal({ isOpen, onClose }: PrivacyVaultModal
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="privacy-vault-title"
+      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200"
+    >
       <div className="bg-[#111827] border border-gray-800 w-full max-w-xl rounded-3xl p-6 md:p-8 shadow-2xl relative">
         <div className="flex justify-between items-start pb-4 border-b border-gray-800 mb-6">
           <div className="flex items-center space-x-3">
@@ -47,18 +61,22 @@ export default function PrivacyVaultModal({ isOpen, onClose }: PrivacyVaultModal
               <Lock size={20} />
             </div>
             <div>
-              <h2 className="text-base font-semibold text-gray-100 flex items-center gap-2">
+              <h2 id="privacy-vault-title" className="text-base font-semibold text-gray-100 flex items-center gap-2">
                 <span>Data Sovereignty & Privacy Vault</span>
                 <span className="text-[10px] bg-indigo-900/40 text-indigo-300 px-2 py-0.5 rounded-full border border-indigo-500/30 font-mono">
                   Phase 14
                 </span>
               </h2>
-              <p className="text-xs text-gray-400">
+              <p className="text-xs text-gray-300">
                 You own 100% of your cognitive models, episodic logs, and psychological weights.
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-gray-800 rounded-xl text-gray-400 hover:text-white transition">
+          <button
+            onClick={onClose}
+            aria-label="Close privacy vault modal"
+            className="p-2 hover:bg-gray-800 rounded-xl text-gray-300 hover:text-white transition"
+          >
             <X size={18} />
           </button>
         </div>

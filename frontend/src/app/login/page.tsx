@@ -15,36 +15,42 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [offlineAvailable, setOfflineAvailable] = useState(false);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setOfflineAvailable(false);
     setLoading(true);
 
     try {
       if (isRegister) {
         const regRes = await register({ email, password, name: name || email.split("@")[0] });
-        const regData = await regRes.json();
-        if (regData.error) {
-          setError(regData.error);
+        const regData = await regRes.json().catch(() => ({}));
+        if (!regRes.ok || regData.error) {
+          setError(regData.detail || regData.error || `Registration failed (HTTP ${regRes.status}).`);
           setLoading(false);
+          return;
+        }
+        if (regData.token) {
+          localStorage.setItem("token", regData.token);
+          router.push("/dashboard");
           return;
         }
       }
 
       const res = await login({ email, password });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
 
-      if (data.token) {
+      if (res.ok && data.token) {
         localStorage.setItem("token", data.token);
         router.push("/dashboard");
       } else {
-        setError(data.error || "Authentication failed. Please verify your credentials.");
+        setError(data.detail || data.error || `Authentication failed (HTTP ${res.status}). Please verify your credentials.`);
       }
-    } catch (err: any) {
-      // In offline/mock mode or if backend is booting, provide graceful fallback
-      console.warn("Backend auth unavailable, allowing guest session fallback:", err);
-      localStorage.setItem("token", "guest_session_demo_token");
-      router.push("/dashboard");
+    } catch {
+      setOfflineAvailable(true);
+      setError("Backend service is unreachable right now. You can retry or enter Local Preview Mode below.");
     } finally {
       setLoading(false);
     }
@@ -53,22 +59,27 @@ export default function LoginPage() {
   async function handleDemoAccess() {
     setLoading(true);
     setError(null);
+    setOfflineAvailable(false);
     try {
       const res = await demoLogin();
-      const data = await res.json();
-      if (data.token) {
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.token) {
         localStorage.setItem("token", data.token);
         router.push("/dashboard");
         return;
       }
-      throw new Error(data.error || "Failed to initialize demo credentials");
-    } catch (err: any) {
-      console.warn("Backend auth unavailable, allowing guest session fallback:", err);
-      localStorage.setItem("token", "demo_cognitive_twin_token");
-      router.push("/dashboard");
+      setError(data.detail || data.error || `Failed to initialize demo credentials (HTTP ${res.status}).`);
+    } catch {
+      setOfflineAvailable(true);
+      setError("Backend service is unreachable. Use Local Preview Mode below to inspect the UI offline.");
     } finally {
       setLoading(false);
     }
+  }
+
+  function handleOfflinePreview() {
+    localStorage.setItem("token", "demo_cognitive_twin_token");
+    router.push("/dashboard");
   }
 
   return (
@@ -209,6 +220,16 @@ export default function LoginPage() {
             <Sparkles className="w-4 h-4 text-amber-400 group-hover:scale-110 transition-transform" />
             Launch Instant Demo Environment
           </button>
+
+          {offlineAvailable && (
+            <button
+              type="button"
+              onClick={handleOfflinePreview}
+              className="w-full mt-2.5 py-2 px-4 rounded-xl bg-amber-950/30 hover:bg-amber-950/50 border border-amber-500/30 text-amber-300 font-medium text-xs transition-all"
+            >
+              Continue in Offline Local Preview Mode
+            </button>
+          )}
         </div>
 
         {/* Security badge */}

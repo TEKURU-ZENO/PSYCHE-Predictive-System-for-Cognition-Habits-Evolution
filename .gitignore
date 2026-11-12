@@ -41,3 +41,7 @@ pgdata/
 Thumbs.db
 .vscode/
 .idea/
+
+# Raw large datasets & local test SQLite files
+backend/data/dataset_mood_smartphone.csv
+*.db

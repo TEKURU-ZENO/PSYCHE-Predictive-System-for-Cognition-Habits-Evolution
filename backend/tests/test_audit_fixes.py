@@ -28,7 +28,7 @@ from models.mood import MoodLog
 from models.proactive import ProactiveAlert
 from models.user_state import UserState
 from services.crisis_service import CrisisService
-from services.deep_forecasting_engine import deep_forecasting_engine
+from services.deep_forecasting_engine import DeepForecastingEngine, deep_forecasting_engine
 from services.guardrails import run_ethical_guardrails
 from services.llm_service import _generate_structured_fallback
 from services.memory_engine import compute_similarity, extract_keywords
@@ -203,8 +203,19 @@ class AuditRemediationTests(unittest.TestCase):
             SimpleNamespace(mood_type="anxious", intensity=0.82, timestamp=datetime(2026, 5, 1, 21, 0)),
         ]
         forecast = deep_forecasting_engine.forecast_trajectory(moods, horizon_steps=3)
-        self.assertIs(forecast["weights_trained"], False)
-        self.assertEqual(forecast["weight_source"], "deterministic_analytic_prior")
+        self.assertIs(forecast["weights_trained"], True)
+        self.assertEqual(forecast["weight_source"], "bptt_ema_smartphone_v1")
+        self.assertGreaterEqual(forecast["predicted_intensity"], 0.05)
+        self.assertLessEqual(forecast["predicted_intensity"], 0.98)
+        held_out = forecast["benchmark_metrics"]["held_out_results"]
+        self.assertGreater(
+            held_out["trained_gru"]["state_accuracy"],
+            held_out["holt_markov"]["state_accuracy"],
+        )
+        self.assertLess(
+            held_out["trained_gru"]["intensity_mae"],
+            held_out["holt_markov"]["intensity_mae"],
+        )
         self.assertIn("burnout_hazard_ci", forecast)
         low, high = forecast["burnout_hazard_ci"]
         self.assertLessEqual(low, forecast["burnout_hazard_rate"])
@@ -217,6 +228,30 @@ class AuditRemediationTests(unittest.TestCase):
         sim_clustered = compute_similarity({"burnout"}, {"exhausted"}, -0.6, -0.6)
         sim_unrelated = compute_similarity({"burnout"}, {"bicycle"}, -0.6, -0.6)
         self.assertGreater(sim_clustered, sim_unrelated)
+
+    def test_bptt_gradients_and_untrained_flag(self):
+        untrained = DeepForecastingEngine(auto_load_trained=False)
+        self.assertIs(untrained.weights_trained, False)
+
+        window = [
+            SimpleNamespace(mood_type="calm", intensity=0.25, timestamp=datetime(2026, 5, 1, 9, 0)),
+            SimpleNamespace(mood_type="focused", intensity=0.35, timestamp=datetime(2026, 5, 1, 13, 0)),
+            SimpleNamespace(mood_type="stressed", intensity=0.72, timestamp=datetime(2026, 5, 1, 18, 0)),
+        ]
+        loss0, grads = untrained.compute_sample_loss_and_grads(window, 5, 0.78, 1.0)
+        eps = 1e-5
+        orig = untrained.gru.W_z[0][0]
+        untrained.gru.W_z[0][0] = orig + eps
+        loss_p, _ = untrained.compute_sample_loss_and_grads(window, 5, 0.78, 1.0)
+        untrained.gru.W_z[0][0] = orig - eps
+        loss_m, _ = untrained.compute_sample_loss_and_grads(window, 5, 0.78, 1.0)
+        untrained.gru.W_z[0][0] = orig
+        num_grad = (loss_p - loss_m) / (2.0 * eps)
+        self.assertLess(abs(num_grad - grads["gru"]["W_z"][0][0]), 1e-6)
+
+        losses = untrained.train_on_windows([(window, 5, 0.78, 1.0)] * 4, epochs=4, batch_size=2, lr=0.05)
+        self.assertIs(untrained.weights_trained, True)
+        self.assertLess(losses[-1], loss0)
 
 
 if __name__ == "__main__":

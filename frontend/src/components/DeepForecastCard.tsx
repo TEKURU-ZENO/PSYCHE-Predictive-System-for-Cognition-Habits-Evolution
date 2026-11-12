@@ -10,12 +10,23 @@ export interface DeepProjectionStep {
   burnout_hazard?: number;
 }
 
+export interface BenchmarkSummary {
+  train_windows?: number;
+  test_windows?: number;
+  held_out_results?: {
+    holt_markov?: { state_accuracy?: number; intensity_mae?: number; cross_entropy_nll?: number };
+    trained_gru?: { state_accuracy?: number; intensity_mae?: number; cross_entropy_nll?: number };
+  };
+}
+
 export interface DeepForecastData {
   status?: string;
   model_type?: string;
   architecture?: string;
   weights_trained?: boolean;
   weight_source?: string;
+  benchmark_metrics?: BenchmarkSummary;
+  predicted_intensity?: number;
   sequence_length?: number;
   required_sequence?: number;
   message?: string;
@@ -56,15 +67,13 @@ export default function DeepForecastCard({ deepForecast, compact = false }: Deep
         <div className="flex items-center space-x-2">
           <Activity size={18} className="text-purple-400" />
           <h3 className="text-sm font-bold text-gray-200 tracking-wide">
-            Gated Latent Trajectory Filter
+            {deepForecast.weights_trained === true ? "GRU Sequence Forecast" : "Gated Latent Trajectory Filter"}
           </h3>
         </div>
         <span className="text-[10px] font-mono bg-purple-950/60 border border-purple-500/30 text-purple-300 px-2.5 py-0.5 rounded-full">
-          {deepForecast.weights_trained === false
-            ? "Analytic GRU Prior (Untrained)"
-            : deepForecast.architecture === "GRU_Latent_Transitions_with_Temporal_Self_Attention"
-            ? "Analytic GRU Prior (Untrained)"
-            : deepForecast.model_type || "State-Space Filter"}
+          {deepForecast.weights_trained === true
+            ? "BPTT-Trained GRU + Attention"
+            : "Analytic GRU Prior (Untrained)"}
         </span>
       </div>
 
@@ -170,7 +179,15 @@ export default function DeepForecastCard({ deepForecast, compact = false }: Deep
             </div>
           )}
 
-          {deepForecast.weights_trained !== true && (
+          {deepForecast.weights_trained === true && deepForecast.benchmark_metrics?.held_out_results?.trained_gru ? (
+            <div className="text-[11px] text-emerald-300/90 bg-emerald-950/20 border border-emerald-500/20 rounded-lg px-3 py-2">
+              Trained via BPTT on EMA trajectories ({deepForecast.benchmark_metrics.test_windows} held-out windows): State Acc{" "}
+              {Math.round((deepForecast.benchmark_metrics.held_out_results.trained_gru.state_accuracy ?? 0) * 100)}% vs Holt-Markov{" "}
+              {Math.round((deepForecast.benchmark_metrics.held_out_results.holt_markov?.state_accuracy ?? 0) * 100)}%, MAE{" "}
+              {deepForecast.benchmark_metrics.held_out_results.trained_gru.intensity_mae} vs{" "}
+              {deepForecast.benchmark_metrics.held_out_results.holt_markov?.intensity_mae}.
+            </div>
+          ) : (
             <div className="text-[11px] text-gray-400 bg-black/30 border border-gray-800/80 rounded-lg px-3 py-2">
               Architecture disclosure: Pure-Python GRU gate equations using fixed analytic priors (untrained; no neural training or PyTorch/TF weights). Paired with the fitted Holt-Markov statistical model.
             </div>
